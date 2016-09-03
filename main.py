@@ -8,11 +8,17 @@ from panda3d.core import *
 from direct.showbase import ShowBase
 from buff_rotator import BufferRotator
 import random
+import math
+
+
+def mix(x, y, a):
+    return x*(1.0-a)+y*a
 
 class Demo():
     def __init__(self):
         base = ShowBase.ShowBase()
-        #number of points, 65 536, don't actually change this
+        #number of points, make it power-o-2,
+        #later we get a texture size for it as int(math.sqrt(num_points))
         num_points=256*256
         #some global shader inputs
         render.setShaderInput('screen_size', Vec2(800.0, 600.0))
@@ -39,27 +45,49 @@ class Demo():
         #velocity is pos_at_frame_1 minus pos_at_frame_0 (given a constant timestep of 1)
         # the location is in xyz, w is the particle life
 
+        #the size of the texture needed
+        xy_size=int(math.sqrt(num_points))
+
         pos_0_pfm=PfmFile()
-        pos_0_pfm.clear(x_size=256, y_size=256, num_channels=4)
-        for x in range(256):
-            for y in range(256):
-                v=Vec4(float(x), float(y), 0.0, 0.0)
-                pos_0_pfm.setPoint4(x, y, v)
+        pos_0_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=4)
+        for x in range(xy_size):
+            for y in range(xy_size):
+                noise=Vec4(random.uniform(-1.0,1.0),random.uniform(-1.0,1.0), random.uniform(-1.0,1.0), 0.0)
+                r=mix(Vec4(-0.1, 0.0, 0.5, 0.0), noise, 0.3)
+                v=Vec4(float(x), float(y), 0.0, 1.0)
+                pos_0_pfm.setPoint4(x, y, v+r)
 
         pos_1_pfm=PfmFile()
-        pos_1_pfm.clear(x_size=256, y_size=256, num_channels=4)
-        for x in range(256):
-            for y in range(256):
-                v=Vec4(float(x)+random.uniform(-0.1,0.1), float(y)+random.uniform(-0.1,0.1), random.uniform(-0.5,0.0), 0.0)
+        pos_1_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=4)
+        life=0.0
+        for x in range(xy_size):
+            for y in range(xy_size):
+                v=Vec4(float(x), float(y), 0.0, life)
                 pos_1_pfm.setPoint4(x, y, v)
+                life+=1.0
+                if life>300.0:
+                    life=0.0
 
         pos_tex0=Texture()
         pos_tex1=Texture()
         pos_tex0.load(pos_0_pfm)
         pos_tex1.load(pos_1_pfm)
 
+        #noise texture
+        noise_pfm=PfmFile()
+        noise_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=3)
+        for x in range(xy_size):
+            for y in range(xy_size):
+                v=Vec3(random.uniform(-1.0,1.0),random.uniform(-1.0,1.0), random.uniform(-1.0,1.0))
+                v.normalize()
+                noise_pfm.setPoint3(x, y, v)
+        noise_tex=Texture()
+        noise_tex.load(noise_pfm)
+
+        shader_inputs={'noise':noise_tex}
+
         physics_shader=Shader.load(Shader.SL_GLSL,'physics_v.glsl', 'physics_f.glsl')
-        self.ping_pong=BufferRotator(physics_shader, pos_tex0, pos_tex1)
+        self.ping_pong=BufferRotator(physics_shader, pos_tex0, pos_tex1,shader_inputs)
 
 
         #set the shader for the point(s)

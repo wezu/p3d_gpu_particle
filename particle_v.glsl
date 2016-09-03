@@ -15,7 +15,10 @@ flat out float point_size;
 void main()
     {
     float id=float(gl_VertexID);
-    vec2 pos_uv=vec2(mod(id, 256.0)/256.0, ceil(id/256.0)/256.0);
+    float tex_size=textureSize(pos_tex, 0).x;
+
+    vec2 pos_uv=vec2(mod(id, tex_size)/tex_size, ceil(id/tex_size)/tex_size);
+    //pos_uv=+vec2(0.5/tex_size,0.5/tex_size);//??
 
     vec4 offset=textureLod(pos_tex, pos_uv, 0);
     vec4 vert = p3d_Vertex;
@@ -25,9 +28,10 @@ void main()
     point_size = (radius*screen_size.y)/ dist;
     if (point_size<1.0)
         point_size=0.0;
-    gl_PointSize = point_size;
     center = (gl_Position.xy / gl_Position.w * 0.5 + 0.5);
 
-    //if (offset.w<0.0)
-    //    gl_PointSize = 0.0;
+    if (offset.w<0.0)
+        point_size = 0.0;
+
+     gl_PointSize = point_size;
     }

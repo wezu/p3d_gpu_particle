@@ -1,7 +1,7 @@
 from panda3d.core import *
 
 class BufferRotator():
-    def __init__(self, shader, tex0, tex1, update_speed=None):
+    def __init__(self, shader, tex0, tex1, shader_inputs={}, bits=32, update_speed=None):
         #upadate speed - how often is the who thing run
         if update_speed:
             self.update_speed=update_speed
@@ -14,9 +14,9 @@ class BufferRotator():
         self.texB=Texture()
         self.texC=Texture()
 
-        self.buffA, self.quadA = self.makeBuffer(self.texA, shader)
-        self.buffB, self.quadB = self.makeBuffer(self.texB, shader)
-        self.buffC, self.quadC = self.makeBuffer(self.texC, shader)
+        self.buffA, self.quadA = self.makeBuffer(self.texA, shader, shader_inputs, bits)
+        self.buffB, self.quadB = self.makeBuffer(self.texB, shader, shader_inputs, bits)
+        self.buffC, self.quadC = self.makeBuffer(self.texC, shader, shader_inputs, bits)
 
         self.output=self.tex1
         self.state=0
@@ -88,7 +88,7 @@ class BufferRotator():
             self.buffB.setActive(True)
             self.buffC.setActive(False)
 
-    def makeBuffer(self, tex, shader):
+    def makeBuffer(self, tex, shader, shader_inputs={}, bits=32):
         root=NodePath("bufferRoot")
         x=self.tex0.getXSize()
         y=self.tex0.getYSize()
@@ -100,7 +100,7 @@ class BufferRotator():
         if y<2:
             y=2
         props = FrameBufferProperties()
-        props.setRgbaBits(32, 32, 32, 32)
+        props.setRgbaBits(bits,bits, bits, bits)
         props.setSrgbColor(False)
         props.setFloatColor(True)
         buff=base.win.makeTextureBuffer("buff", x, y, tex, fbp=props)
@@ -120,7 +120,20 @@ class BufferRotator():
         quad.lookAt(0, 0, -1)
         ShaderAttrib.make(shader)
         quad.setAttrib(ShaderAttrib.make(shader))
+        #pass shader inputs
+        for name, value in shader_inputs.items():
+            quad.setShaderInput(str(name), value)
+        #return the buff and quad
         return buff, quad
+
+    def setShaderInputsDict(self, shader_inputs_dict):
+        for name, value in shader_inputs_dict.items():
+            self.setShaderInput(name, value)
+
+    def setShaderInput(self, name, value):
+        self.quadA.setShaderInput(str(name), value)
+        self.quadB.setShaderInput(str(name), value)
+        self.quadC.setShaderInput(str(name), value)
 
     def update(self, dt):
         self.time+=dt
