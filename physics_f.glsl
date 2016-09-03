@@ -31,7 +31,7 @@ void main()
             {
             vec3 velocity=pos_last.xyz-pos_prelast.xyz;
             vec3 force = vec3(0.0, 0.0, -1.0);
-            float mass= abs(noise_tex.r*0.5);
+            float mass= abs(noise_tex.r*0.5)+0.1;
             velocity += (force*mass)*0.05;
             new_pos=pos_last.xyz+velocity;
             }
