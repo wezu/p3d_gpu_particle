@@ -19,7 +19,7 @@ class Demo():
         base = ShowBase.ShowBase()
         #number of points, make it power-o-2,
         #later we get a texture size for it as int(math.sqrt(num_points))
-        num_points=256*256
+        num_points=1024*1024
         #some global shader inputs
         render.setShaderInput('screen_size', Vec2(800.0, 600.0))
         render.setShaderInput('camera_pos', base.camera.getPos(render))

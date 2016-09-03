@@ -8,6 +8,7 @@ in vec2 uv;
 
 void main()
     {
+    float tex_size=textureSize(pos_tex_last, 0).x;
     vec4 pos_last=texture(pos_tex_last, uv);
     vec4 pos_prelast=texture(pos_tex_prelast, uv);
     vec3 noise_tex=texture(noise, uv).xyz;
@@ -17,7 +18,7 @@ void main()
     if (life > 300.0)//reset after some time
         {
         vec3 v =mix(vec3(0.1, 0.0, -0.5), noise_tex, 0.3);
-        new_pos.xyz=vec3(uv.xy*256.0, 0.0)+v;
+        new_pos.xyz=vec3(uv.xy*tex_size, 0.0)+v;
         life=-1.0;
         }
     else
@@ -25,7 +26,7 @@ void main()
         if (life<1.0) //new spawn, give it some initial velocity
             {
             //vec3 v =mix(vec3(0.1, 0.0, -0.5), noise_tex, 0.1);
-            new_pos=vec3(uv.xy*256.0, 0.0);
+            new_pos=vec3(uv.xy*tex_size, 0.0);
             }
         else //middle of the simulation, apply gravity
             {
