@@ -8,8 +8,6 @@ flat in float point_size;
 
 void main()
     {
-    if (point_size <1.0)
-        discard;
 
     vec2 uv = (gl_FragCoord.xy / screen_size - center) / (point_size / screen_size) + 0.5;
     vec4 final_color=texture(tex, uv);
