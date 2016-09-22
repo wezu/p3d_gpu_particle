@@ -8,6 +8,7 @@ from panda3d.core import *
 from direct.showbase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 from buff_rotator import BufferRotator
+from direct.interval.IntervalGlobal import *
 import random
 import math
 import itertools
@@ -20,7 +21,7 @@ class Demo(DirectObject):
         base = ShowBase.ShowBase()
         #number of points, make it power-o-2, tested up to 1024*1024= 1 048 576 particles@ 90-120fps on a AMD R7
         #later we get a texture size for it as int(math.sqrt(num_points))
-        num_points=32*32
+        num_points=64*64
         #some global shader inputs
         render.setShaderInput('screen_size', Vec2(800.0, 600.0))
         render.setShaderInput('camera_pos', base.camera.getPos(render))
@@ -64,19 +65,19 @@ class Demo(DirectObject):
                 pos_0_pfm.setPoint4(x, y, v0)
                 pos_1_pfm.setPoint4(x, y, v1)
 
-        #texture for life=0, alpha == mass
+        #texture for life=0, alpha == emmiter ID
         zero_pos_pfm=PfmFile()
         zero_pos_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=4)
         for x in range(xy_size):
             for y in range(xy_size):
-                v=Vec4(float(x), float(y), 0.0, random.uniform(0.2, 0.4))
+                v=Vec4(float(x-32)*0.2, float(y-32)*0.2, 0.0, 1.0)
                 zero_pos_pfm.setPoint4(x, y, v)
         #texture for life=1, alpha == max_life
         one_pos_pfm=PfmFile()
         one_pos_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=4)
         for x in range(xy_size):
             for y in range(xy_size):
-                v=Vec4(float(x)+random.uniform(-0.5, 0.5), float(y)+random.uniform(-0.5, 0.5), 0.0, random.uniform(50.0, 150.0))
+                v=Vec4(float(x-32)*0.2+random.uniform(-0.5, 0.5), float(y-32)*0.2+random.uniform(-0.5, 0.5), 0.0, random.uniform(50.0, 150.0))
                 one_pos_pfm.setPoint4(x, y, v)
 
         #TODO:
@@ -99,14 +100,14 @@ class Demo(DirectObject):
         #to make any kind of shape multiple sin (or cos) functions would have to be added
         #the cost of this would get high and I don't think this would be needed very often
 
-        #mass change from 1 to 0
+        #mass change from ? to ??
         mass_pfm=PfmFile()
         mass_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=4)
         for x in range(xy_size):
             for y in range(xy_size):
                 v=Vec4(0.0, 0.5, -2.0, 0.5)
                 mass_pfm.setPoint4(x, y, v)
-        #size change from ~1 to ~10
+        #size change from ~??? to ~????
         size_pfm=PfmFile()
         size_pfm.clear(x_size=xy_size, y_size=xy_size, num_channels=4)
         for x in range(xy_size):
@@ -128,10 +129,19 @@ class Demo(DirectObject):
         mass_tex.load(mass_pfm)
         size_tex.load(size_pfm)
 
+        #movable emmiter (one for now)
+        #give it something to move around
+        axis=render.attachNewNode('axis')
+        emitter=loader.loadModel('smiley')
+        emitter.reparentTo(axis)
+        emitter.setPos(100, 0, 0)
+        interval=axis.hprInterval(4, (360, 0, 0), startHpr=(0, 0, 0))
+        interval.loop()
+
         shader_inputs={'one_pos':one_pos, 'zero_pos':zero_pos, 'mass_tex':mass_tex, 'size_tex':size_tex}
 
         physics_shader=Shader.load(Shader.SL_GLSL,'physics_v.glsl', 'physics_f.glsl')
-        self.ping_pong=BufferRotator(physics_shader, pos_tex0, pos_tex1,shader_inputs)
+        self.ping_pong=BufferRotator(physics_shader, pos_tex0, pos_tex1,shader_inputs, emitter)
 
 
         #set the shader for the point(s)
@@ -150,7 +160,7 @@ class Demo(DirectObject):
 
         #additive blend (add, 6, 1) (add 14, 1)?
         color_attrib = ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_alpha, ColorBlendAttrib.O_one )
-        #color_attrib = ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_color_saturate, ColorBlendAttrib.O_one )
+        #color_attrib = ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_color_saturate, ColorBlendAttrib.O_one ) #??
         self.point_node.setAttrib(color_attrib)
         self.point_node.setBin("fixed", 0)
         self.point_node.setDepthTest(True)

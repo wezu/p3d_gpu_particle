@@ -1,12 +1,16 @@
 from panda3d.core import *
 
 class BufferRotator():
-    def __init__(self, shader, tex0, tex1, shader_inputs={}, bits=32, update_speed=None):
+    def __init__(self, shader, tex0, tex1, shader_inputs={}, emitter=None, bits=32, update_speed=None):
         #upadate speed - how often is the who thing run
         if update_speed:
             self.update_speed=update_speed
         else:
             self.update_speed=1.0/60.0
+
+        self.emitter=render
+        if emitter:
+            self.emitter=emitter
 
         self.tex0=tex0
         self.tex1=tex1
@@ -135,10 +139,21 @@ class BufferRotator():
         self.quadB.setShaderInput(str(name), value)
         self.quadC.setShaderInput(str(name), value)
 
+
+    def updateEmitterMatrix(self):
+        #for emitter in self.emitters:
+        mat=self.emitter.getMat(render)
+        #print mat
+        emitter_data= PTA_LVecBase4f()
+        for i in range(4):
+            emitter_data.pushBack(mat.getRow(i))
+        self.setShaderInput('emitter_data', emitter_data)
+
     def update(self, dt):
         self.time+=dt
         if self.time >= self.update_speed:
             self.time=0
+            self.updateEmitterMatrix()
             self.flipBuffers()
         else:
             self.buffA.setActive(False)
