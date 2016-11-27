@@ -8,14 +8,12 @@ class PfmGen():
         #current coords
         self.x=0
         self.y=0
+        self.num_added=0
         #the pfm
         self.pfm=PfmFile()
         self.pfm.clear(x_size=x_size, y_size=y_size, num_channels=4)
         if fill:
             self.pfm.fill(fill)
-
-
-
 
     def debug(self):
         r=[]
@@ -53,6 +51,7 @@ class PfmGen():
             self.y+=1
             self.x=0
         #print self.x, self.y, value
+        self.num_added+=1
 
     def to_texture(self):
         tex=Texture()

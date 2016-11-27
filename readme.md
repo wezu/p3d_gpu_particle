@@ -1,6 +1,5 @@
-This is a Particle system for Panda3D.
+This is a Particle system for Panda3D, the physics for it is run on the GPU using ping-pong buffers.
 
-This works by sending 256*256 vertex to the gpu then using a ping-pong buffer to render a texture with the locations for each vertex.
-The vertex are then drawn as textures points.
-
-At this point it just throws a bunch of particles in the air and let's them fall. Not all that impressive.
+Check the main.py to see how the particle data can be genereated and saved.
+Check the main2.py to see how to load a particle system from a file.
+Check the editor.py to see how a editor will work - It's not all that working now, but you can give it some values and click 'generate' to see the effects - or not, it's WIP!!

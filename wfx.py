@@ -214,7 +214,8 @@ class Wfx():
             node.setDepthWrite(False)
 
     def make_points(self, num_points):
-        if num_points>0:
+        #print 'make_points', num_points
+        if num_points>1:
             aformat = GeomVertexArrayFormat("vertex", 1, GeomEnums.NT_uint8, GeomEnums.C_other)
             format = GeomVertexFormat.register_format(GeomVertexFormat(aformat))
             vdata = GeomVertexData('abc', format, GeomEnums.UH_static)
