@@ -57,9 +57,10 @@ class Wfx():
 
         #the system sets some global shader inputs, so to avoid conficts
         # a dummy node can be inserted
-        self.root=render
+        self.root=render.attachNewNode('wfx_root')
         if root:
-            self.root=root
+            self.root=root.attachNewNode('wfx_root')
+        self.root.hide()
 
         #the size of the window is needed to generate uv for the particles
         #it may not be base.win if rendering to a smaller off-screen buff
@@ -69,6 +70,8 @@ class Wfx():
             self.window=window
 
         self.pause=False
+        self.ping_pong=None
+        self.task=None
         #update task
         #taskMgr.add(self._update, 'wfx_update_tsk')
 
@@ -91,8 +94,7 @@ class Wfx():
         try:
             shader_attrib = ShaderAttrib.make(self.particle_shader)
             shader_attrib = shader_attrib.setFlag(ShaderAttrib.F_shader_point_size, True)
-            self.points_add_blend.setAttrib(shader_attrib)
-            self.points_dual_blend.setAttrib(shader_attrib)
+            self.root.setAttrib(shader_attrib)
         except AttributeError:
             pass
 
@@ -161,41 +163,38 @@ class Wfx():
                         'status':status}
             x=kwargs['one_pos'].getXSize()
             y=kwargs['one_pos'].getYSize()
-            #emitters, for now it's all render
+            #emitters, for now it's all self.root (default to render)
             emitters=[]
             for i in range(kwargs['data']['num_emitters']+1):
-                emitters.append(render)
-            self.ping_pong=BufferRotator(self.physics_shader, kwargs['pos_0'], kwargs['pos_1'], shader_inputs, emitters, update_speed=self.update_speed)
-            #add blending
-            add_blending=(x*y)-kwargs['data']['blend_index']
+                emitters.append(self.root)
+            if self.ping_pong is None:
+                self.ping_pong=BufferRotator(self.physics_shader, kwargs['pos_0'], kwargs['pos_1'], shader_inputs, emitters, update_speed=self.update_speed)
+                #add blending
+                add_blending=(x*y)-kwargs['data']['blend_index']
+                self.points_add_blend=self.make_points(add_blending)
+                self.set_blend(self.points_add_blend, 'add')
+                #mod blending
+                self.points_dual_blend=self.make_points(kwargs['data']['blend_index'])
+                self.set_blend(self.points_dual_blend, 'dual')
+            else:
+                self.ping_pong.setShaderInputsDict(shader_inputs)
+                self.ping_pong.reset_textures(kwargs['pos_0'], kwargs['pos_1'])
 
-            self.points_add_blend=self.make_points(add_blending)
+            #shader and inputs
             shader_attrib = ShaderAttrib.make(self.particle_shader)
             shader_attrib = shader_attrib.setFlag(ShaderAttrib.F_shader_point_size, True)
-            self.points_add_blend.setAttrib(shader_attrib)
-            self.set_blend(self.points_add_blend, 'add')
-            self.points_add_blend.setShaderInput('tex', kwargs['texture'])
-            self.points_add_blend.setShaderInput('one_pos', kwargs['one_pos'])
-            self.points_add_blend.setShaderInput('offset_tex', kwargs['offset'])
-            self.points_add_blend.setShaderInput('size_tex', kwargs['size'])
-            self.points_add_blend.setShaderInput('index_offset', 0.0)
-            #mod blending
+            self.root.setAttrib(shader_attrib)
+            self.root.setShaderInput('tex', kwargs['texture'])
+            self.root.setShaderInput('one_pos', kwargs['one_pos'])
+            self.root.setShaderInput('offset_tex', kwargs['offset'])
+            self.root.setShaderInput('size_tex', kwargs['size'])
+            self.root.setShaderInput('index_offset', 0.0)
+            self.points_dual_blend.setShaderInput('index_offset', float(kwargs['data']['blend_index']))
 
-            self.points_dual_blend=self.make_points(kwargs['data']['blend_index'])
-            shader_attrib = ShaderAttrib.make(self.particle_shader)
-            shader_attrib = shader_attrib.setFlag(ShaderAttrib.F_shader_point_size, True)
-            self.points_dual_blend.setAttrib(shader_attrib)
-            self.set_blend(self.points_dual_blend, 'dual')
-            self.points_dual_blend.setShaderInput('tex', kwargs['texture'])
-            self.points_dual_blend.setShaderInput('one_pos', kwargs['one_pos'])
-            self.points_dual_blend.setShaderInput('offset_tex', kwargs['offset'])
-            self.points_dual_blend.setShaderInput('size_tex', kwargs['size'])
-            self.points_dual_blend.setShaderInput('index_offset', float(add_blending))
 
             self.ping_pong.updateEmitterMatrix()
             self.root.setShaderInput('camera_pos', base.camera.getPos(self.root))
-            self.points_add_blend.setShaderInput('pos_tex', self.ping_pong.output)
-            self.points_dual_blend.setShaderInput('pos_tex', self.ping_pong.output)
+            self.root.setShaderInput('pos_tex', self.ping_pong.output)
             self.reset_window_size()
         else:
             print 'error'
@@ -205,7 +204,7 @@ class Wfx():
 
     def set_blend(self, node,  mode):
         if mode=='dual':
-            node.setTransparency(TransparencyAttrib.MDual)
+            node.setTransparency(TransparencyAttrib.MDual, 1)
         elif mode =='add':
             color_attrib = ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_alpha, ColorBlendAttrib.O_one )
             node.setAttrib(color_attrib)
@@ -233,13 +232,12 @@ class Wfx():
             point_node=render.attachNewNode('empty')
         point_node.setRenderMode(RenderModeAttrib.MPoint, 1)
         point_node.reparentTo(self.root)
-        point_node.hide()
         return point_node
 
     def start(self):
-        self.points_dual_blend.show()
-        self.points_add_blend.show()
-        self.task=taskMgr.add(self._update, 'wfx_update_tsk')
+        self.root.show()
+        if self.task is None:
+            self.task=taskMgr.add(self._update, 'wfx_update_tsk')
 
     def set_pause(self):
         self.pause = not self.pause
@@ -286,8 +284,7 @@ class Wfx():
         self.root.setShaderInput('camera_pos', base.camera.getPos(self.root))
         if not self.pause:
             self.ping_pong.update(dt)
-        self.points_add_blend.setShaderInput('pos_tex', self.ping_pong.output)
-        self.points_dual_blend.setShaderInput('pos_tex', self.ping_pong.output)
+        self.root.setShaderInput('pos_tex', self.ping_pong.output)
         return task.again
 
 
@@ -325,6 +322,17 @@ class BufferRotator():
         self.output=self.tex1
         self.state=0
         self.time=0
+
+    def reset_textures(self, tex0, tex1):
+        self.tex0=tex0
+        self.tex1=tex1
+        self.quadA.setShaderInput('pos_tex_prelast',self.tex0)
+        self.quadA.setShaderInput('pos_tex_last',self.tex1)
+        self.quadB.setShaderInput('pos_tex_prelast',self.tex0)
+        self.quadB.setShaderInput('pos_tex_last',self.tex1)
+        self.quadC.setShaderInput('pos_tex_prelast',self.tex0)
+        self.quadC.setShaderInput('pos_tex_last',self.tex1)
+        self.state=0
 
     def debug_getPixel(self, x, y):
         size_x=self.tex0.getXSize()

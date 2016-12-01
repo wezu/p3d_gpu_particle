@@ -54,7 +54,9 @@ class Demo(DirectObject):
         self.size_pfm=PfmGen(buff_size[0], buff_size[1])
         self.offset_pfm=PfmGen(buff_size[0], buff_size[1])
 
-        tex_offset_id=self.tex_combine.add('tex/fire2.png')
+        data={'num_emitters':1,'status':[1],'blend_index':64*32}
+
+        tex_offset_id=self.tex_combine.add('tex/fire3.png')
         self.current_node=0.0
         mass=Vec4(0.0, 0.5, -2.0, 0.5)
         size=Vec4(-0.4,1.2,10.0,10.05)
@@ -80,7 +82,19 @@ class Demo(DirectObject):
             self.size_pfm.add(size)
             self.offset_pfm.add(offset)
 
-        tex_offset_id=self.tex_combine.add('tex/smoke2.png')
+        self.fx.load(pos_0=self.pos_0_pfm.to_texture(),
+                    pos_1=self.pos_1_pfm.to_texture(),
+                    mass=self.mass_pfm.to_texture(),
+                    size=self.size_pfm.to_texture(),
+                    one_pos=self.one_pos_pfm.to_texture(),
+                    zero_pos=self.zero_pos_pfm.to_texture(),
+                    data=data,
+                    texture=self.tex_combine.to_texture(),
+                    offset=self.offset_pfm.to_texture()
+                    )
+
+
+        tex_offset_id=self.tex_combine.add('tex/smoke3.png')
         num_tex=len(self.tex_combine.known_columns)
 
         #fix the offsets
@@ -99,13 +113,14 @@ class Demo(DirectObject):
 
 
         offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
-        size=Vec4(-1.0,0.5,100.0,90.0)
+        size=Vec4(-1.0,0.5,100.0,80.0)
+        mass=Vec4(0.0, 0.5, -1.5, 0.0)
         for i in range(64*32):
             start_life=float(randint(-200, 0))
             #start_life=0.0
-            max_life=uniform(100.0, 180.0)
+            max_life=uniform(90.0, 130.0)
             #max_life=100.0
-            one_pos=Vec3(uniform(-0.4, 0.4), uniform(-0.4, 0.4), 0.0)
+            one_pos=Vec3(uniform(-0.6, 0.6), uniform(-0.6, 0.6), 0.0)
             #zero_pos=Vec3(i*0.1, 0.0, 0.0)
             #one_pos=Vec3(i*0.1, 0, 0.1)
             self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life)
@@ -116,9 +131,6 @@ class Demo(DirectObject):
             self.mass_pfm.add(mass)
             self.size_pfm.add(size)
             self.offset_pfm.add(offset)
-
-
-        data={'num_emitters':1,'status':[1],'blend_index':64*32}
 
         self.fx.load(pos_0=self.pos_0_pfm.to_texture(),
                     pos_1=self.pos_1_pfm.to_texture(),
@@ -131,13 +143,11 @@ class Demo(DirectObject):
                     offset=self.offset_pfm.to_texture()
                     )
 
-
-
         #self.fx.set_emitter_node(0, emitter)
         self.fx.start()
 
         self.accept("space",self.fx.set_pause)
-        #self.write_file('default.wfx')
+        self.write_file('default.wfx')
 
     def write_file(self, write_to):
         print "write_file"
@@ -202,6 +212,7 @@ class Demo(DirectObject):
         os.remove('mass.pfm')
         os.remove('size.pfm')
         os.remove('offset.pfm')
+        os.remove('texture.png')
 
 d=Demo()
 base.run()

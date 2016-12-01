@@ -15,6 +15,7 @@ from wfx import Wfx
 from random import randrange, randint, choice, shuffle, random, uniform
 import math
 import json
+import os
 
 class Editor(DirectObject):
     def __init__(self):
@@ -178,6 +179,17 @@ class Editor(DirectObject):
                     v[2]=1.0/float(num_tex)
                     #print v
                     self.offset_pfm.set(i, v)
+                for i in range(self.offset_pfm.num_added_offset):
+                    v=self.offset_pfm.get(i+self.offset_pfm.offset)
+                    #print v,
+                    if v[0]!= 0.0:
+                        old_index=round(1.0/float(v[0])-1.0)
+                    else:
+                        old_index=0.0
+                    v[0]=old_index*1.0/float(num_tex)
+                    v[2]=1.0/float(num_tex)
+                    #print v
+                    self.offset_pfm.set(i+self.offset_pfm.offset, v)
         except Exception as e:
             self.gui.popup(e)
             return
@@ -189,6 +201,8 @@ class Editor(DirectObject):
         mass=Vec4(self.values['mass_offset'],self.values['mass_freq'],self.values['mass_multi'],self.values['mass_x_offset'])
         size=Vec4(self.values['size_offset'],self.values['size_freq'],self.values['size_multi'],self.values['size_x_offset'])
 
+        #current blending mode, things got mixed up somewhere...
+        use_offset=not self.additive_blend
 
         number=self.exe(self.panel_entry_repeat.get(), expect_int=True)
         if number is None or number < 1:
@@ -196,6 +210,7 @@ class Editor(DirectObject):
             return
 
         loop_locals={'number':number}
+
         for n in range(number):
             #get the values and check if they are valid
             loop_locals['n']=n
@@ -222,19 +237,19 @@ class Editor(DirectObject):
             loop_locals['max_life']=max_life
             #write the values
             #print 'pos_0'
-            self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life)
+            self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life, offset=use_offset)
             #print 'pos_1'
-            self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0)
+            self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0, offset=use_offset)
             #print 'zero_pos'
-            self.zero_pos_pfm.add(zero_pos, self.current_node)
+            self.zero_pos_pfm.add(zero_pos, self.current_node, offset=use_offset)
             #print 'one_pos'
-            self.one_pos_pfm.add(one_pos,max_life)
+            self.one_pos_pfm.add(one_pos,max_life, offset=use_offset)
             #print 'mass'
-            self.mass_pfm.add(mass)
+            self.mass_pfm.add(mass, offset=use_offset)
             #print 'size'
-            self.size_pfm.add(size)
+            self.size_pfm.add(size, offset=use_offset)
             #print 'offset'
-            self.offset_pfm.add(offset)
+            self.offset_pfm.add(offset, offset=use_offset)
 
         data={'num_emitters':len(self.node)+1,
                 'status':self.active,
@@ -306,8 +321,8 @@ class Editor(DirectObject):
         mf.addSubfile('texture.png', fn, 0)
 
         #write some config vars to the mf
-        data=json.dumps({'num_emitters':len(self.node), 'status':self.active, 'blend_index':self.values['blending_pool']})
-        print data
+        data=json.dumps({'num_emitters':len(self.node)+1, 'status':self.active, 'blend_index':self.values['blending_pool']})
+        #print data
         data_ss=StringStream()
         data_ss.setData(data)
         mf.addSubfile('data.txt', data_ss, 9)
@@ -321,6 +336,7 @@ class Editor(DirectObject):
         os.remove('mass.pfm')
         os.remove('size.pfm')
         os.remove('offset.pfm')
+        os.remove('texture.png')
 
 
 
@@ -498,13 +514,13 @@ class Editor(DirectObject):
 
             self.panel_txt_number['text']=str(self.values['particle_left'][0])
             #setup all the pfm generators
-            self.pos_0_pfm=PfmGen(buff_size[0], buff_size[1])
-            self.pos_1_pfm=PfmGen(buff_size[0], buff_size[1])
-            self.one_pos_pfm=PfmGen(buff_size[0], buff_size[1])
-            self.zero_pos_pfm=PfmGen(buff_size[0], buff_size[1])
-            self.mass_pfm=PfmGen(buff_size[0], buff_size[1])
-            self.size_pfm=PfmGen(buff_size[0], buff_size[1])
-            self.offset_pfm=PfmGen(buff_size[0], buff_size[1])
+            self.pos_0_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            self.pos_1_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            self.one_pos_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            self.zero_pos_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            self.mass_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            self.size_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            self.offset_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
             #print self.values
         else:
             self.gui.popup(error_msg)
