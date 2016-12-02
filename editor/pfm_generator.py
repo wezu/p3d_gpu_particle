@@ -78,17 +78,29 @@ class PfmGen():
         tex.load(self.pfm)
         return tex
 
-    def remove_last(self, n=1):
-        for i in range(n):
-            self.x-=1
-            if self.x<0:
-                self.x=self.x_size
-                self.y-=0
-            if self.y<0:
-                self.y=0
-                self.x=0
-                break
-            self.pfm.setPoint4(self.x, self.y, Vec4(0,0,0,0))
+    def remove_last(self, n=1, offset=False):
+        if offset:
+            for i in range(n):
+                self.x_offset-=1
+                if self.x_offset<0:
+                    self.x_offset=self.x_size-1
+                    self.y_offset-=1
+                if self.y_offset<0:
+                    self.y=0
+                    self.x_offset=0
+                    break
+                self.pfm.setPoint4(self.x_offset, self.y_offset, Vec4(0,0,0,0))
+        else:
+            for i in range(n):
+                self.x-=1
+                if self.x<0:
+                    self.x=self.x_size-1
+                    self.y-=1
+                if self.y<0:
+                    self.y=0
+                    self.x=0
+                    break
+                self.pfm.setPoint4(self.x, self.y, Vec4(0,0,0,0))
 
     def write(self, path):
         self.pfm.write(path)

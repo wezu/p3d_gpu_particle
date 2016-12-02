@@ -157,6 +157,19 @@ class Editor(DirectObject):
         # +U = (1.0/number_of_textures)*(tex_offset_id-1)
         #offset=Vec4(+U,+V, 1.0/number_of_textures, number_of_frames)
 
+
+        number=self.exe(self.panel_entry_repeat.get(), expect_int=True)
+        if number is None or number < 1:
+            self.gui.popup("'Repeat' must be a positive integer\n"+self.last_error)
+            return
+        if self.additive_blend:
+            particle_left= self.values['particle_left'][1]
+        else:
+            particle_left= self.values['particle_left'][0]
+        if number > particle_left:
+            self.gui.popup("Can't generate "+str(number)+" particles, You only have "+str(particle_left)+" particles left!")
+            return
+
         #texture magic
         number_of_frames=self.tex_combine.num_frames
         #we need to know if a new texture was added or an old one is reused
@@ -204,14 +217,10 @@ class Editor(DirectObject):
         #current blending mode, things got mixed up somewhere...
         use_offset=not self.additive_blend
 
-        number=self.exe(self.panel_entry_repeat.get(), expect_int=True)
-        if number is None or number < 1:
-            self.gui.popup("'Repeat' must be a positive integer\n"+self.last_error)
-            return
 
         loop_locals={'number':number}
 
-        for n in range(number):
+        for n in range(1, number+1):
             #get the values and check if they are valid
             loop_locals['n']=n
             zero_pos=self.exe(self.panel_entry_pos.get(), loop_locals, expect_vec3=True)
@@ -270,6 +279,15 @@ class Editor(DirectObject):
             self.fx.set_emitter_node(i+1, node)
         self.fx.start()
 
+        #particle left
+        if self.additive_blend:
+            id=1
+        else:
+            id=0
+        self.values['particle_left'][id]-=n # 'n' is used not 'number', the actual loop count
+        self.panel_txt_number['text']=str(self.values['particle_left'][id])
+
+        self.panel_entry_del.set(str(n))
 
     def write_file(self):
         print "write_file"
@@ -341,7 +359,41 @@ class Editor(DirectObject):
 
 
     def del_particles(self):
-        print "del_particles"
+        numer_to_delete=self.exe(self.panel_entry_del.get(), expect_int=True)
+        if numer_to_delete is None:
+            self.gui.popup("To delete particles you must provide a valid number of particles to delete. "+self.last_error)
+            return
+        use_offset=not self.additive_blend
+        self.pos_0_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.pos_1_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.one_pos_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.zero_pos_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.mass_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.size_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.offset_pfm.remove_last(numer_to_delete, offset=use_offset)
+
+
+        data={'num_emitters':len(self.node)+1,
+                'status':self.active,
+                'blend_index':self.values['blending_pool']}
+        self.fx.load(pos_0=self.pos_0_pfm.to_texture(),
+                    pos_1=self.pos_1_pfm.to_texture(),
+                    mass=self.mass_pfm.to_texture(),
+                    size=self.size_pfm.to_texture(),
+                    one_pos=self.one_pos_pfm.to_texture(),
+                    zero_pos=self.zero_pos_pfm.to_texture(),
+                    data=data,
+                    texture=self.tex_combine.to_texture(),
+                    offset=self.offset_pfm.to_texture()
+                    )
+
+        if self.additive_blend:
+            id=1
+        else:
+            id=0
+        self.values['particle_left'][id]+=numer_to_delete
+        self.panel_txt_number['text']=str(self.values['particle_left'][id])
+        self.panel_entry_del.set('0')
 
     def freq_plus(self):
         self.graph_freq_entry.set(str(self.graph.inputs['freq']+0.05))
@@ -502,7 +554,7 @@ class Editor(DirectObject):
         if error_msg=='':
             self.setup_frame.hide()
             self.show_panel()
-            self.values['particle_left']=(self.values['particle_pool']-self.values['blending_pool'], self.values['blending_pool'])
+            self.values['particle_left']=[self.values['particle_pool']-self.values['blending_pool'], self.values['blending_pool']]
             self.values['mass_offset']=0.0
             self.values['mass_freq']=-0.5
             self.values['mass_multi']=0.5

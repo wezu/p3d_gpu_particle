@@ -170,12 +170,14 @@ class Wfx():
             if self.ping_pong is None:
                 self.ping_pong=BufferRotator(self.physics_shader, kwargs['pos_0'], kwargs['pos_1'], shader_inputs, emitters, update_speed=self.update_speed)
                 #add blending
-                add_blending=(x*y)-kwargs['data']['blend_index']
-                self.points_add_blend=self.make_points(add_blending)
+                dual_blending=(x*y)-kwargs['data']['blend_index']
+                print 'add', kwargs['data']['blend_index']
+                self.points_add_blend=self.make_points(kwargs['data']['blend_index'])
                 self.set_blend(self.points_add_blend, 'add')
                 #mod blending
-                self.points_dual_blend=self.make_points(kwargs['data']['blend_index'])
+                self.points_dual_blend=self.make_points(dual_blending)
                 self.set_blend(self.points_dual_blend, 'dual')
+                print 'dual', dual_blending
             else:
                 self.ping_pong.setShaderInputsDict(shader_inputs)
                 self.ping_pong.reset_textures(kwargs['pos_0'], kwargs['pos_1'])
