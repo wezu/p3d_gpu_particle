@@ -151,15 +151,26 @@ class Wfx():
             self.load(**new_kwargs)
         elif needed_kwargs <= set(kwargs): #check if all the needed args are given
             #print kwargs['data']
-            num_emiters=kwargs['data']['num_emitters']
-            status=PTAFloat()
-            for i in range(num_emiters):
-                status.pushBack(float(kwargs['data']['status'][i]))
+            self.num_emiters=kwargs['data']['num_emitters']
+            self.current_status=kwargs['data']['status']
+            if 'forces' in kwargs['data']:
+                self.current_forces=kwargs['data']['forces']
+            else:
+                self.current_forces=[Vec3(0,0,0) for x in range(self.num_emiters)]
+            status=PTA_LVecBase4f()
+            for i in range(self.num_emiters):
+                v=Vec4(0,0,0,0)
+                v[0]=self.current_forces[i][0]
+                v[1]=self.current_forces[i][1]
+                v[2]=self.current_forces[i][2]
+                v[3]=float(self.current_status[i])
+                status.pushBack(v)
 
             shader_inputs={'one_pos':kwargs['one_pos'],
                         'zero_pos':kwargs['zero_pos'],
                         'mass_tex':kwargs['mass'],
                         'size_tex':kwargs['size'],
+                        'global_force':Vec4(0,0,-1.0,0),
                         'status':status}
             x=kwargs['one_pos'].getXSize()
             y=kwargs['one_pos'].getYSize()
@@ -171,13 +182,13 @@ class Wfx():
                 self.ping_pong=BufferRotator(self.physics_shader, kwargs['pos_0'], kwargs['pos_1'], shader_inputs, emitters, update_speed=self.update_speed)
                 #add blending
                 dual_blending=(x*y)-kwargs['data']['blend_index']
-                print 'add', kwargs['data']['blend_index']
+                #print 'add', kwargs['data']['blend_index']
                 self.points_add_blend=self.make_points(kwargs['data']['blend_index'])
                 self.set_blend(self.points_add_blend, 'add')
                 #mod blending
                 self.points_dual_blend=self.make_points(dual_blending)
                 self.set_blend(self.points_dual_blend, 'dual')
-                print 'dual', dual_blending
+                #print 'dual', dual_blending
             else:
                 self.ping_pong.setShaderInputsDict(shader_inputs)
                 self.ping_pong.reset_textures(kwargs['pos_0'], kwargs['pos_1'])
@@ -188,9 +199,11 @@ class Wfx():
             self.root.setAttrib(shader_attrib)
             self.root.setShaderInput('tex', kwargs['texture'])
             self.root.setShaderInput('one_pos', kwargs['one_pos'])
+            self.root.setShaderInput('zero_pos', kwargs['zero_pos'])
             self.root.setShaderInput('offset_tex', kwargs['offset'])
             self.root.setShaderInput('size_tex', kwargs['size'])
             self.root.setShaderInput('index_offset', 0.0)
+            self.root.setShaderInput('status',status)
             self.points_dual_blend.setShaderInput('index_offset', float(kwargs['data']['blend_index']))
 
 
@@ -267,16 +280,53 @@ class Wfx():
         self.root.setShaderInput('screen_size', Vec2(self.window.getXSize(), self.window.getYSize()))
 
     def set_global_force(self, force):
-        pass
+        try:
+            self.ping_pong.setShaderInput('global_force', Vec4(force[0], force[1], force[2], 0.0))
+        except AttributeError:
+            pass
 
     def set_emitter_force(self, emitter_id, force):
-        pass
+        try:
+            status=PTA_LVecBase4f()
+            for i in range(self.num_emiters):
+                v=Vec4(0,0,0,0)
+                if i == emitter_id:
+                    v[0]=force[0]
+                    v[1]=force[1]
+                    v[2]=force[2]
+                else:
+                    v[0]=self.current_forces[i][0]
+                    v[1]=self.current_forces[i][1]
+                    v[2]=self.current_forces[i][2]
+                v[3]=float(self.current_status[i])
+                status.pushBack(v)
+            self.ping_pong.setShaderInput('status',status)
+        except AttributeError:
+            pass
+
+    def set_emitter_active(self, emitter_id, active):
+        try:
+            status=PTA_LVecBase4f()
+            for i in range(self.num_emiters):
+                v=Vec4(0,0,0,0)
+                if i == emitter_id:
+                    v[3]=float(active)
+                else:
+                    v[3]=float(self.current_status[i])
+                v[0]=self.current_forces[i][0]
+                v[1]=self.current_forces[i][1]
+                v[2]=self.current_forces[i][2]
+                status.pushBack(v)
+            self.ping_pong.setShaderInput('status',status)
+            self.root.setShaderInput('status',status)
+        except AttributeError:
+            pass
 
     def set_emitter_on(self, emitter_id):
-        pass
+        self.set_emitter_active(emitter_id, 1.0)
 
     def set_emitter_off(self, emitter_id):
-        pass
+        self.set_emitter_active(emitter_id, 0.0)
 
     def set_emitter_node(self, emitter_id, node):
         self.ping_pong.emitters[emitter_id]=node

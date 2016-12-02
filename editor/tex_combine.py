@@ -115,6 +115,7 @@ class TextureCombiner():
 
     def add(self, path):
         if path in self.known_columns:
+            print 'known texture!'
             return self.known_columns[path]
         self.known_columns[path]=len(self.known_columns)
         #image=PNMImage()

@@ -90,6 +90,7 @@ class PfmGen():
                     self.x_offset=0
                     break
                 self.pfm.setPoint4(self.x_offset, self.y_offset, Vec4(0,0,0,0))
+                self.num_added_offset-=1
         else:
             for i in range(n):
                 self.x-=1
@@ -101,6 +102,10 @@ class PfmGen():
                     self.x=0
                     break
                 self.pfm.setPoint4(self.x, self.y, Vec4(0,0,0,0))
+                self.num_added-=1
+        #print 'offset', self.offset
+        #print 'x', self.x, 'y', self.y, 'num', self.num_added
+        #print 'x_off', self.x_offset, 'y_off', self.y_offset, 'num_off', self.num_added_offset
 
     def write(self, path):
         self.pfm.write(path)

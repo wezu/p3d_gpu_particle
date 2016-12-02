@@ -86,14 +86,14 @@ class Editor(DirectObject):
                     raise TypeError('Expected a float')
             return r
         except NameError as e:
-            print "Cmd:'",str(command),"' error:",e
+            #print "Cmd:'",str(command),"' error:",e
             self.last_error = str(command)+': '+str(e)
             if expect_vec3 or expect_int or expect_float:
                 return None
             return str(command)
         except Exception as e:
-            print "Command error!"
-            print e
+            #print "Command error!"
+            #print e
             self.last_error = str(command)+': '+str(e)
 
     def find_power_of_two_size(self, size):
@@ -132,9 +132,10 @@ class Editor(DirectObject):
     def change_active(self):
         self.active[self.current_node]= not self.active[self.current_node]
         self.panel_txt_active['text']=str(self.active[self.current_node])
+        self.fx.set_emitter_active(self.current_node, self.active[self.current_node])
 
     def generate(self):
-        print "generate"
+        #print "generate"
         #we need
         #zero_pos #position at time =0
         #one_pos #position at time =1
@@ -203,8 +204,9 @@ class Editor(DirectObject):
                     v[2]=1.0/float(num_tex)
                     #print v
                     self.offset_pfm.set(i+self.offset_pfm.offset, v)
-        except Exception as e:
-            self.gui.popup(e)
+        except BaseException as e:
+            self.gui.popup('Texture error: '+str(e))
+            #print e
             return
         #print 'tex_offset_id', tex_offset_id, 'num_tex',num_tex
         offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
@@ -275,7 +277,7 @@ class Editor(DirectObject):
                     )
 
         for i, node in enumerate(self.node):
-            print i+1, node
+            #print i+1, node
             self.fx.set_emitter_node(i+1, node)
         self.fx.start()
 
@@ -290,7 +292,7 @@ class Editor(DirectObject):
         self.panel_entry_del.set(str(n))
 
     def write_file(self):
-        print "write_file"
+        #print "write_file"
         write_to=self.panel_entry_save.get()
         #write the pfm do hd
         self.pos_0_pfm.write('pos_0.pfm')

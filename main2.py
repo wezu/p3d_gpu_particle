@@ -16,7 +16,7 @@ from panda3d.core import *
 from direct.showbase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 from direct.interval.IntervalGlobal import *
-
+import random
 
 from wfx import Wfx
 
@@ -27,9 +27,9 @@ class Demo(DirectObject):
         #movable emitter
         #give it something to move around
         axis=render.attachNewNode('axis')
-        emitter=loader.loadModel('smiley')
-        emitter.reparentTo(axis)
-        emitter.setPos(100, 0, 0)
+        self.emitter=loader.loadModel('smiley')
+        self.emitter.reparentTo(axis)
+        self.emitter.setPos(100, 0, 0)
         interval=axis.hprInterval(5, (360, 0, 0), startHpr=(0, 0, 0))
         interval.loop()
         #emitter.hide()
@@ -37,12 +37,22 @@ class Demo(DirectObject):
         #load particles and link them to a moving emitter
         self.particle=Wfx(update_speed=60.0)
         self.particle.load("default.wfx")
-        self.particle.set_emitter_node(emitter_id=0, node=emitter)
+        #self.particle.set_emitter_node(emitter_id=0, node=self.emitter)
         self.particle.start()
+
+        #self.particle.set_emitter_force(0, Vec3(0.5, 0, 0))
 
         #space stops the fx animation
         self.accept("space",self.particle.set_pause)
 
+        taskMgr.add(self.do_wind, 'do_wind')
+
+    def do_wind(self, task):
+        v=self.emitter.getPos(render)*0.005
+        v[2]=-1
+        #print v
+        self.particle.set_global_force(v)
+        return task.again
 
 d=Demo()
 base.run()

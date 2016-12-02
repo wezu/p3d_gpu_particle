@@ -7,9 +7,10 @@ uniform sampler2D pos_tex_last;
 uniform sampler2D zero_pos;
 uniform sampler2D one_pos;
 uniform sampler2D mass_tex;
+uniform vec4 global_force;
 uniform vec4 emitter_data[4*WFX_NUM_EMITTERS];
-uniform float status[WFX_NUM_EMITTERS]; //1*num_emitters
-
+//uniform float status[WFX_NUM_EMITTERS]; //1*num_emitters
+uniform vec4 status[WFX_NUM_EMITTERS];
 
 in vec2 uv;
 
@@ -27,7 +28,7 @@ void main()
     int emmiter_id=int(pos_zero.w);
     mat4 emmiter_matrix= mat4(emitter_data[0],emitter_data[1],emitter_data[2],emitter_data[3]);
 
-    if (status[emmiter_id] == 0.0)
+    if (status[emmiter_id].w == 0.0)
         final_pos=pos_last;
     else
         {
@@ -51,7 +52,7 @@ void main()
             else
                 {
                 vec3 velocity=pos_last.xyz-pos_prelast.xyz;
-                vec3 force = vec3(0.0, 0.0, -1.0);
+                vec3 force = global_force.xyz + status[emmiter_id].xyz; //status.xyz is the per-emitter local force
                 float mass= (sin((life/max_life)+mass_curve.x)*3.141592653589793*mass_curve.y)*mass_curve.z + mass_curve.w;
                 velocity += (force*mass)*0.05;
                 vec3 new_pos=pos_last.xyz+velocity;

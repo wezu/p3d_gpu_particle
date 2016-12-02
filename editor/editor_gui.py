@@ -268,5 +268,5 @@ class GUI(DirectObject):
         self.close_popup()
         self.last_popup=self.frame('editor/ui/popup_window.png', (-256, -64), self.center)
         self.last_popup_button=self.button('editor/ui/highlight_2.png', (224, 96), self.last_popup, self.close_popup)
-        self.last_popup['text']=text
+        self.last_popup['text']=str(text)
 

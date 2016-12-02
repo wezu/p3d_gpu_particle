@@ -9,8 +9,10 @@ uniform vec3 camera_pos;
 uniform sampler2D pos_tex;
 uniform sampler2D size_tex;
 uniform sampler2D one_pos;
+uniform sampler2D zero_pos;
 uniform sampler2D offset_tex;
 uniform float index_offset;
+uniform vec4 status[WFX_NUM_EMITTERS];
 in vec4 p3d_Vertex;
 
 flat out vec2 center;
@@ -44,5 +46,10 @@ void main()
     if (offset.w<0.0)
         point_size = 0.0;
 
-     gl_PointSize = point_size;
+    vec4 pos_zero=textureLod(zero_pos, pos_uv, 0);
+    int emmiter_id=int(pos_zero.w);
+    if (status[emmiter_id].w == 0.0)
+        point_size = 0.0;
+
+    gl_PointSize = point_size;
     }
