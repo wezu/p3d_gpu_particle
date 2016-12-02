@@ -277,7 +277,7 @@ class Editor(DirectObject):
                     )
 
         for i, node in enumerate(self.node):
-            #print i+1, node
+            print i+1, node
             self.fx.set_emitter_node(i+1, node)
         self.fx.start()
 

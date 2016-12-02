@@ -151,14 +151,15 @@ class Wfx():
             self.load(**new_kwargs)
         elif needed_kwargs <= set(kwargs): #check if all the needed args are given
             #print kwargs['data']
-            self.num_emiters=kwargs['data']['num_emitters']
+            self.num_emitters=kwargs['data']['num_emitters']
+            self.reload_shaders() #make sure the inc is written!
             self.current_status=kwargs['data']['status']
             if 'forces' in kwargs['data']:
                 self.current_forces=kwargs['data']['forces']
             else:
-                self.current_forces=[Vec3(0,0,0) for x in range(self.num_emiters)]
+                self.current_forces=[Vec3(0,0,0) for x in range(self.num_emitters)]
             status=PTA_LVecBase4f()
-            for i in range(self.num_emiters):
+            for i in range(self.num_emitters):
                 v=Vec4(0,0,0,0)
                 v[0]=self.current_forces[i][0]
                 v[1]=self.current_forces[i][1]
@@ -288,7 +289,7 @@ class Wfx():
     def set_emitter_force(self, emitter_id, force):
         try:
             status=PTA_LVecBase4f()
-            for i in range(self.num_emiters):
+            for i in range(self.num_emitters):
                 v=Vec4(0,0,0,0)
                 if i == emitter_id:
                     v[0]=force[0]
@@ -307,7 +308,7 @@ class Wfx():
     def set_emitter_active(self, emitter_id, active):
         try:
             status=PTA_LVecBase4f()
-            for i in range(self.num_emiters):
+            for i in range(self.num_emitters):
                 v=Vec4(0,0,0,0)
                 if i == emitter_id:
                     v[3]=float(active)
@@ -316,6 +317,7 @@ class Wfx():
                 v[0]=self.current_forces[i][0]
                 v[1]=self.current_forces[i][1]
                 v[2]=self.current_forces[i][2]
+                print i, v
                 status.pushBack(v)
             self.ping_pong.setShaderInput('status',status)
             self.root.setShaderInput('status',status)
@@ -512,9 +514,10 @@ class BufferRotator():
             self.setShaderInput(name, value)
 
     def setShaderInput(self, name, value):
-        self.quadA.setShaderInput(str(name), value)
-        self.quadB.setShaderInput(str(name), value)
-        self.quadC.setShaderInput(str(name), value)
+        #print 'setting input', name, value
+        self.quadA.setShaderInput(name, value)
+        self.quadB.setShaderInput(name, value)
+        self.quadC.setShaderInput(name, value)
 
     def setShader(self, shader):
         self.quadA.setShader(shader)
@@ -525,9 +528,12 @@ class BufferRotator():
         emitter_data= PTA_LVecBase4f()
         for emitter in self.emitters:
             mat=emitter.getMat(render)
+            #mat=render.getMat()
+            #print emitter, mat
             for i in range(4):
                 emitter_data.pushBack(mat.getRow(i))
         self.setShaderInput('emitter_data', emitter_data)
+
 
     def remove(self):
         engine = base.win.getGsg().getEngine()

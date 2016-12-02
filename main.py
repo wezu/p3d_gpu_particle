@@ -54,7 +54,7 @@ class Demo(DirectObject):
         self.size_pfm=PfmGen(buff_size[0], buff_size[1])
         self.offset_pfm=PfmGen(buff_size[0], buff_size[1])
 
-        data={'num_emitters':1,'status':[1],'blend_index':64*32}
+        data={'num_emitters':2,'status':[1,1],'blend_index':64*32}
 
         tex_offset_id=self.tex_combine.add('tex/fire3.png')
         self.current_node=0.0
@@ -126,7 +126,7 @@ class Demo(DirectObject):
             self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life)
             self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0)
 
-            self.zero_pos_pfm.add(zero_pos, self.current_node)
+            self.zero_pos_pfm.add(zero_pos, 1.0)
             self.one_pos_pfm.add(one_pos,max_life)
             self.mass_pfm.add(mass)
             self.size_pfm.add(size)
@@ -142,9 +142,11 @@ class Demo(DirectObject):
                     texture=self.tex_combine.to_texture(),
                     offset=self.offset_pfm.to_texture()
                     )
-
-        #self.fx.set_emitter_node(0, emitter)
+        #self.fx.set_emitter_off(0)
+        #self.fx.set_emitter_on(1)
+        self.fx.set_emitter_node(1, emitter)
         self.fx.start()
+
 
         self.accept("space",self.fx.set_pause)
         self.write_file('default.wfx')

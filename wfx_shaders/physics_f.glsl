@@ -24,11 +24,11 @@ void main()
     vec4 pos_one=texture(one_pos, uv);
     vec4 pos_zero=texture(zero_pos, uv);
     vec4 mass_curve=texture(mass_tex, uv);
-    //insert emmiter id here for multiple emitters
-    int emmiter_id=int(pos_zero.w);
-    mat4 emmiter_matrix= mat4(emitter_data[0],emitter_data[1],emitter_data[2],emitter_data[3]);
+    //insert emitter id here for multiple emitters
+    int emitter_id=int(pos_zero.w);
+    mat4 emitter_matrix= mat4(emitter_data[0+emitter_id*4],emitter_data[1+emitter_id*4],emitter_data[2+emitter_id*4],emitter_data[3+emitter_id*4]);
 
-    if (status[emmiter_id].w == 0.0)
+    if (status[emitter_id].w == 0.0)
         final_pos=pos_last;
     else
         {
@@ -39,20 +39,20 @@ void main()
 
         if (life<=0.0)
             {
-            pos_zero=emmiter_matrix *vec4(pos_zero.xyz, 1.0);
+            pos_zero=emitter_matrix *vec4(pos_zero.xyz, 1.0);
             final_pos=vec4(pos_zero.xyz, life+1.0);
             }
         else
             {
             if (life<=1.0)
                 {
-                pos_one=emmiter_matrix *vec4(pos_one.xyz, 1.0);
+                pos_one=emitter_matrix *vec4(pos_one.xyz, 1.0);
                 final_pos=vec4(pos_one.xyz, life+1.0);
                 }
             else
                 {
                 vec3 velocity=pos_last.xyz-pos_prelast.xyz;
-                vec3 force = global_force.xyz + status[emmiter_id].xyz; //status.xyz is the per-emitter local force
+                vec3 force = global_force.xyz + status[emitter_id].xyz; //status.xyz is the per-emitter local force
                 float mass= (sin((life/max_life)+mass_curve.x)*3.141592653589793*mass_curve.y)*mass_curve.z + mass_curve.w;
                 velocity += (force*mass)*0.05;
                 vec3 new_pos=pos_last.xyz+velocity;
