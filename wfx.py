@@ -295,6 +295,9 @@ class Wfx():
                     v[0]=force[0]
                     v[1]=force[1]
                     v[2]=force[2]
+                    self.current_forces[i][0]=force[0]
+                    self.current_forces[i][1]=force[1]
+                    self.current_forces[i][2]=force[2]
                 else:
                     v[0]=self.current_forces[i][0]
                     v[1]=self.current_forces[i][1]
@@ -312,6 +315,7 @@ class Wfx():
                 v=Vec4(0,0,0,0)
                 if i == emitter_id:
                     v[3]=float(active)
+                    self.current_status[i]=active
                 else:
                     v[3]=float(self.current_status[i])
                 v[0]=self.current_forces[i][0]

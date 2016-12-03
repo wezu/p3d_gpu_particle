@@ -74,19 +74,20 @@ class Editor(DirectObject):
                     return Vec3(r[0],r[1],r[2])
                 else:
                     raise TypeError('Expected a 3-component vector, got: '+str(r))
-            if expect_int:
+            elif expect_int:
                 if isinstance(r, int):
                     return r
                 else:
                     raise TypeError('Expected an int')
-            if expect_float:
+            elif expect_float:
                 if isinstance(r, float):
                     return r
                 else:
                     raise TypeError('Expected a float')
-            return r
+            else:
+                return r
         except NameError as e:
-            #print "Cmd:'",str(command),"' error:",e
+            print "Cmd:'",str(command),"' error:",e
             self.last_error = str(command)+': '+str(e)
             if expect_vec3 or expect_int or expect_float:
                 return None
@@ -107,6 +108,16 @@ class Editor(DirectObject):
                 y*=2
             n+=1
         return (x,y)
+
+    def set_force(self, force_txt):
+        if force_txt =='':
+            # this fires for a'focus out' event
+            force_txt=self.panel_entry_force.get()
+        force=self.exe(force_txt, expect_vec3=True)
+        if force is None:
+            self.gui.popup("The force must be a vector.\n"+self.last_error)
+            return
+        self.fx.set_emitter_force(self.current_node, force)
 
     def next_node(self):
         if self.current_node < len(self.node):
@@ -608,7 +619,7 @@ class Editor(DirectObject):
             self.panel_entry_tex=self.gui.entry('tex/fire2.png', (864, 32), (128,192), self.panel_frame)
             self.panel_entry_save=self.gui.entry('default.wfx', (384, 32), (608,288), self.panel_frame)
             self.panel_entry_del=self.gui.entry('0', (160, 32), (780,224), self.panel_frame)
-            self.panel_entry_force=self.gui.entry('Vec3(0.0, 0.0,-1.0)', (408, 32), (355,256), self.panel_frame)
+            self.panel_entry_force=self.gui.entry('Vec3(0.0, 0.0,-1.0)', (408, 32), (355,256), self.panel_frame, command=self.set_force)
 
             #buttons
             self.panel_button_blend=self.gui.button('editor/ui/highlight_7.png', (517, 0), self.panel_frame, self.change_blend_mode)

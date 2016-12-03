@@ -126,7 +126,7 @@ class Demo(DirectObject):
             self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life)
             self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0)
 
-            self.zero_pos_pfm.add(zero_pos, 1.0)
+            self.zero_pos_pfm.add(zero_pos, 0.0)
             self.one_pos_pfm.add(one_pos,max_life)
             self.mass_pfm.add(mass)
             self.size_pfm.add(size)
@@ -144,7 +144,7 @@ class Demo(DirectObject):
                     )
         #self.fx.set_emitter_off(0)
         #self.fx.set_emitter_on(1)
-        self.fx.set_emitter_node(1, emitter)
+        #self.fx.set_emitter_node(1, emitter)
         self.fx.start()
 
 
