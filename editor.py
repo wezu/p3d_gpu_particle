@@ -1,3 +1,4 @@
+from __future__ import print_function
 from panda3d.core import loadPrcFileData
 loadPrcFileData('', 'textures-power-2 None')
 loadPrcFileData('', 'win-size 1024 768')
@@ -87,7 +88,7 @@ class Editor(DirectObject):
             else:
                 return r
         except NameError as e:
-            print "Cmd:'",str(command),"' error:",e
+            print ("Cmd: '"+str(command)+"' error:",e)
             self.last_error = str(command)+': '+str(e)
             if expect_vec3 or expect_int or expect_float:
                 return None
@@ -288,7 +289,7 @@ class Editor(DirectObject):
                     )
 
         for i, node in enumerate(self.node):
-            print i+1, node
+            #print i+1, node
             self.fx.set_emitter_node(i+1, node)
         self.fx.start()
 

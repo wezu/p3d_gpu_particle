@@ -75,7 +75,8 @@ class Wfx():
         #update task
         #taskMgr.add(self._update, 'wfx_update_tsk')
 
-    def reload_shaders(self):
+    def _reload_shaders(self):
+        #print '_reload_shaders',self.num_emitters
         with open('wfx_shaders/inc_config.glsl', 'w') as out_file:
             out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
             out_file.write('#define WFX_NUM_EMITTERS '+str(self.num_emitters))
@@ -152,7 +153,7 @@ class Wfx():
         elif needed_kwargs <= set(kwargs): #check if all the needed args are given
             #print kwargs['data']
             self.num_emitters=kwargs['data']['num_emitters']
-            self.reload_shaders() #make sure the inc is written!
+            self._reload_shaders() #make sure the inc is written!
             self.current_status=kwargs['data']['status']
             if 'forces' in kwargs['data']:
                 self.current_forces=kwargs['data']['forces']
@@ -177,18 +178,18 @@ class Wfx():
             y=kwargs['one_pos'].getYSize()
             #emitters, for now it's all self.root (default to render)
             emitters=[]
-            for i in range(kwargs['data']['num_emitters']+1):
+            for i in range(self.num_emitters):
                 emitters.append(self.root)
             if self.ping_pong is None:
                 self.ping_pong=BufferRotator(self.physics_shader, kwargs['pos_0'], kwargs['pos_1'], shader_inputs, emitters, update_speed=self.update_speed)
                 #add blending
                 dual_blending=(x*y)-kwargs['data']['blend_index']
                 #print 'add', kwargs['data']['blend_index']
-                self.points_add_blend=self.make_points(kwargs['data']['blend_index'])
-                self.set_blend(self.points_add_blend, 'add')
+                self.points_add_blend=self._make_points(kwargs['data']['blend_index'])
+                self._set_blend(self.points_add_blend, 'add')
                 #mod blending
-                self.points_dual_blend=self.make_points(dual_blending)
-                self.set_blend(self.points_dual_blend, 'dual')
+                self.points_dual_blend=self._make_points(dual_blending)
+                self._set_blend(self.points_dual_blend, 'dual')
                 #print 'dual', dual_blending
             else:
                 self.ping_pong.setShaderInputsDict(shader_inputs)
@@ -211,14 +212,14 @@ class Wfx():
             self.ping_pong.updateEmitterMatrix()
             self.root.setShaderInput('camera_pos', base.camera.getPos(self.root))
             self.root.setShaderInput('pos_tex', self.ping_pong.output)
-            self.reset_window_size()
+            self._reset_window_size()
         else:
             print 'error'
             for arg in args:
                 print 'arg:', arg
             print kwargs
 
-    def set_blend(self, node,  mode):
+    def _set_blend(self, node,  mode):
         if mode=='dual':
             node.setTransparency(TransparencyAttrib.MDual, 1)
         elif mode =='add':
@@ -228,8 +229,8 @@ class Wfx():
             node.setDepthTest(True)
             node.setDepthWrite(False)
 
-    def make_points(self, num_points):
-        #print 'make_points', num_points
+    def _make_points(self, num_points):
+        #print '_make_points', num_points
         if num_points>1:
             aformat = GeomVertexArrayFormat("vertex", 1, GeomEnums.NT_uint8, GeomEnums.C_other)
             format = GeomVertexFormat.register_format(GeomVertexFormat(aformat))
@@ -275,7 +276,7 @@ class Wfx():
         self.root=None
         self.window=None
 
-    def reset_window_size(self, window=None):
+    def _reset_window_size(self, window=None):
         if window:
             self.window=window
         self.root.setShaderInput('screen_size', Vec2(self.window.getXSize(), self.window.getYSize()))
@@ -321,7 +322,7 @@ class Wfx():
                 v[0]=self.current_forces[i][0]
                 v[1]=self.current_forces[i][1]
                 v[2]=self.current_forces[i][2]
-                print i, v
+                #print i, v
                 status.pushBack(v)
             self.ping_pong.setShaderInput('status',status)
             self.root.setShaderInput('status',status)
@@ -529,13 +530,11 @@ class BufferRotator():
         self.quadC.setShader(shader)
 
     def updateEmitterMatrix(self):
-        emitter_data= PTA_LVecBase4f()
+        #emitter_data= PTA_LVecBase4f()
+        emitter_data=PTALMatrix4f()
         for emitter in self.emitters:
             mat=emitter.getMat(render)
-            #mat=render.getMat()
-            #print emitter, mat
-            for i in range(4):
-                emitter_data.pushBack(mat.getRow(i))
+            emitter_data.pushBack(UnalignedLMatrix4f(mat))
         self.setShaderInput('emitter_data', emitter_data)
 
 

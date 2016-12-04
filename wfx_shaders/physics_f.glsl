@@ -8,9 +8,9 @@ uniform sampler2D zero_pos;
 uniform sampler2D one_pos;
 uniform sampler2D mass_tex;
 uniform vec4 global_force;
-uniform vec4 emitter_data[4*WFX_NUM_EMITTERS];
-//uniform float status[WFX_NUM_EMITTERS]; //1*num_emitters
-uniform vec4 status[WFX_NUM_EMITTERS];
+//uniform vec4 emitter_data[4*WFX_NUM_EMITTERS];
+uniform mat4 emitter_data[WFX_NUM_EMITTERS];
+uniform vec4 status[WFX_NUM_EMITTERS];// local_force=status.xyz, active_state=status.w
 
 in vec2 uv;
 
@@ -18,7 +18,6 @@ out vec4 final_pos;
 
 void main()
     {
-    float tex_size=textureSize(pos_tex_last, 0).x;
     vec4 pos_last=texture(pos_tex_last, uv);
     vec4 pos_prelast=texture(pos_tex_prelast, uv);
     vec4 pos_one=texture(one_pos, uv);
@@ -26,7 +25,9 @@ void main()
     vec4 mass_curve=texture(mass_tex, uv);
     //insert emitter id here for multiple emitters
     int emitter_id=int(pos_zero.w);
-    mat4 emitter_matrix= mat4(emitter_data[0+emitter_id*4],emitter_data[1+emitter_id*4],emitter_data[2+emitter_id*4],emitter_data[3+emitter_id*4]);
+    //mat4 emitter_matrix= mat4(emitter_data[0+emitter_id*4],emitter_data[1+emitter_id*4],emitter_data[2+emitter_id*4],emitter_data[3+emitter_id*4]);
+    mat4 emitter_matrix=emitter_data[emitter_id];
+
 
     if (status[emitter_id].w == 0.0)
         final_pos=pos_last;
