@@ -127,9 +127,9 @@ class PfmGen():
                     self.x=0
                     break
                 if self.num_channels==3:
-                    self.pfm.setPoint3(self.x_offset, self.y_offset, Vec3(0,0,0))
+                    self.pfm.setPoint3(self.x, self.y, Vec3(0,0,0))
                 elif self.num_channels==4:
-                    self.pfm.setPoint4(self.x_offset, self.y_offset, Vec4(0,0,0,0))
+                    self.pfm.setPoint4(self.x, self.y, Vec4(0,0,0,0))
                 self.num_added-=1
         #print 'offset', self.offset
         #print 'x', self.x, 'y', self.y, 'num', self.num_added
