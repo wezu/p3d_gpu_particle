@@ -16,6 +16,102 @@ def _resetPivot(frame):
     frame.flattenLight()
 
 
+class DragSelectFrame():
+    def __init__(self, size, pos, parent, command):
+        self.frame=DirectFrame(frameSize=_rec2d(size[0],size[1]),
+                                frameColor=(1,0,0,0.0),
+                                parent=parent,
+                                state=DGG.NORMAL)
+        _resetPivot(self.frame)
+        self.frame.setPos(_pos2d(pos[0],pos[1]))
+        self.frame.setTransparency(TransparencyAttrib.MAlpha)
+        self.frame.bind(DGG.B1PRESS, self._on_click)
+        self.frame.bind(DGG.B1RELEASE, self._on_release)
+
+        tex=loader.loadTexture('editor/ui/select_frame.png')
+        tex.setMagfilter(SamplerState.FT_nearest)
+        tex.setMinfilter(SamplerState.FT_nearest)
+
+        self.selection_frame=DirectFrame(frameSize=_rec2d(32,32),
+                                frameColor=(1,1,1,1),
+                                frameTexture=tex,
+                                parent=self.frame)
+        _resetPivot(self.selection_frame)
+
+        self.snap=0.0625
+
+        self.u=0.0
+        self.v=1.0
+        self.frame_size=0
+        self.num_frame=0
+        self.task=None
+        self.command=command
+
+    def set_selection_pos(self, uv):
+        x=int(uv[0]*512)
+        y=512-int(uv[1]*512)
+        self.selection_frame.setPos(_pos2d(x,y))
+
+    def set_selection_frame(self, width, height, num_frames):
+        self.selection_frame['frameSize']=_rec2d(-width*512,-height*512)
+        self.selection_frame.setTexScale(TextureStage.getDefault(), 1.0, num_frames)
+
+    def _update(self, task):
+        snap=self.snap
+        pixel_snap=512.0*self.snap
+        if base.mouseWatcherNode.hasMouse():
+            m = base.mouseWatcherNode.getMouse()
+            pixel_pos=self.frame.getRelativePoint(render2d, Point3(m[0], 0, m[1]))
+
+            x=pixel_pos[0]
+            y=pixel_pos[2]
+            x=pixel_snap*round(x/pixel_snap)
+            y=pixel_snap*round(y/pixel_snap)
+
+            pos=self.selection_frame.getPos()
+            width=abs(x-pos[0])
+            height=abs(y-pos[2])
+
+            width=min(512.0, max(pixel_snap, width))
+            height=min(512.0, max(pixel_snap, height))
+
+            if  height%width != 0:
+                if round(height/width, 0) ==0.0:
+                    height=width
+                else:
+                    height=width*round(height/width, 0)
+            self.selection_frame['frameSize']=_rec2d(-width,-height)
+            self.frame_size=width/512.0
+            self.num_frame=height/width
+            self.selection_frame.setTexScale(TextureStage.getDefault(), 1.0, self.num_frame)
+        return task.again
+
+    def _on_click(self, event):
+        snap=self.snap
+        pixel_snap=512.0*self.snap
+        m=event.getMouse()
+        pixel_pos=self.frame.getRelativePoint(render2d, Point3(m[0], 0, m[1]))
+
+        x=pixel_pos[0]
+        y=pixel_pos[2]
+        x=pixel_snap*round(x/pixel_snap)
+        y=pixel_snap*round(y/pixel_snap)
+        self.selection_frame.setPos(_pos2d(x,-y))
+
+        u=pixel_pos[0]/512
+        v=1.0+pixel_pos[2]/512
+        self.u=snap*round(u/snap)
+        self.v=snap*round(v/snap)
+
+        if self.task is None:
+            self.task=taskMgr.add(self._update, 'DragSelectFrame_update_tsk')
+
+    def _on_release(self, event):
+        if self.task is not None:
+            taskMgr.remove(self.task)
+            self.task=None
+        self.command()
+
 class SinGraphFrame():
     def __init__(self, size, pos, parent, offset=0.0, freq=1.0, multi=1.0, x_offset=0.0):
         tex=loader.loadTexture('editor/ui/graph_line.png')
@@ -171,6 +267,9 @@ class GUI(DirectObject):
     def graph_frame(self, size, pos, parent, offset=0.0, freq=1.0, multi=1.0, x_offset=0.0):
         return SinGraphFrame(size, pos, parent, offset, freq, multi, x_offset)
 
+    def drag_select_frame(self,size, pos, parent, command):
+        return DragSelectFrame(size, pos, parent, command)
+
     def scroll_frame(self, pos, size, canvas_size, parent):
         scrolled_frame=DirectScrolledFrame(
                                             canvasSize = _rec2d(canvas_size[0],canvas_size[1]),
@@ -268,5 +367,5 @@ class GUI(DirectObject):
         self.close_popup()
         self.last_popup=self.frame('editor/ui/popup_window.png', (-256, -64), self.center)
         self.last_popup_button=self.button('editor/ui/highlight_2.png', (224, 96), self.last_popup, self.close_popup)
-        self.last_popup['text']=str(text)
+        self.last_popup['text']=text
 

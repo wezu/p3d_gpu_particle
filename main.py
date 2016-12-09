@@ -43,27 +43,30 @@ class Demo(DirectObject):
         buff_size=[64, 64]
 
         self.fx=Wfx()
-        #set the size of the texture atlas here
-        self.tex_combine=TextureCombiner(frame_size=128, num_frames=16)
+        #self.tex_combine=TextureCombiner(frame_size=128, num_frames=16)
+        self.texture=loader.loadTexture('tex/atlas1.png')
         #the pfm generators
         self.pos_0_pfm=PfmGen(buff_size[0], buff_size[1])
         self.pos_1_pfm=PfmGen(buff_size[0], buff_size[1])
-        self.one_pos_pfm=PfmGen(buff_size[0], buff_size[1])
-        self.zero_pos_pfm=PfmGen(buff_size[0], buff_size[1])
+        self.one_pos_pfm=PfmGen(buff_size[0], buff_size[1],num_channels=3)
+        self.zero_pos_pfm=PfmGen(buff_size[0], buff_size[1],num_channels=3)
         self.mass_pfm=PfmGen(buff_size[0], buff_size[1])
         self.size_pfm=PfmGen(buff_size[0], buff_size[1])
         self.offset_pfm=PfmGen(buff_size[0], buff_size[1])
+        self.props_pfm=PfmGen(buff_size[0], buff_size[1])
 
-        data={'num_emitters':2,'status':[1,1],'blend_index':64*32}
+        data={'num_emitters':1,'status':[1],'blend_index':64*32}
 
-        tex_offset_id=self.tex_combine.add('tex/fire3.png')
+
         self.current_node=0.0
         mass=Vec4(0.0, 0.5, -2.0, 0.5)
         size=Vec4(-0.4,1.2,10.0,10.05)
         #size=Vec4(0.0, 0.0, 1.0, 16.0)
-        num_tex=len(self.tex_combine.known_columns)
-        offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
+        #offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
+        #this changed in v0.2, offset.xy = uv offset, offset.z = frame size, offset.w= number of frames
+        offset=Vec4(0.0, 1.0, 0.0625, 16.0)
         zero_pos=Vec3(0.0, 0.0, 0.0)
+        bounce=0.0
 
         for i in range(64*32):
             start_life=float(randint(-200, 0))
@@ -76,43 +79,17 @@ class Demo(DirectObject):
             self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life)
             self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0)
 
-            self.zero_pos_pfm.add(zero_pos, self.current_node)
-            self.one_pos_pfm.add(one_pos,max_life)
+            self.zero_pos_pfm.add(zero_pos)
+            self.one_pos_pfm.add(one_pos)
             self.mass_pfm.add(mass)
             self.size_pfm.add(size)
             self.offset_pfm.add(offset)
+            self.props_pfm.add(start_life, max_life, self.current_node,bounce)
 
-        self.fx.load(pos_0=self.pos_0_pfm.to_texture(),
-                    pos_1=self.pos_1_pfm.to_texture(),
-                    mass=self.mass_pfm.to_texture(),
-                    size=self.size_pfm.to_texture(),
-                    one_pos=self.one_pos_pfm.to_texture(),
-                    zero_pos=self.zero_pos_pfm.to_texture(),
-                    data=data,
-                    texture=self.tex_combine.to_texture(),
-                    offset=self.offset_pfm.to_texture()
-                    )
+        #offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
+        #this changed in v0.2, offset.xy = uv offset, offset.z = frame size, offset.w= number of frames
+        offset=Vec4(0.0625, 1.0, 0.0625, 16.0)
 
-
-        tex_offset_id=self.tex_combine.add('tex/smoke3.png')
-        num_tex=len(self.tex_combine.known_columns)
-
-        #fix the offsets
-        #print self.offset_pfm.num_added
-        for i in range(self.offset_pfm.num_added):
-            v=self.offset_pfm.get(i)
-            #print v,
-            if v[0]!= 0.0:
-                old_index=round(1.0/float(v[0])-1.0)
-            else:
-                old_index=0.0
-            v[0]=old_index*1.0/float(num_tex)
-            v[2]=1.0/float(num_tex)
-            #print v
-            self.offset_pfm.set(i, v)
-
-
-        offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
         size=Vec4(-1.0,0.5,100.0,80.0)
         mass=Vec4(0.0, 0.5, -1.5, 0.0)
         for i in range(64*32):
@@ -126,11 +103,12 @@ class Demo(DirectObject):
             self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life)
             self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0)
 
-            self.zero_pos_pfm.add(zero_pos, 0.0)
-            self.one_pos_pfm.add(one_pos,max_life)
+            self.zero_pos_pfm.add(zero_pos)
+            self.one_pos_pfm.add(one_pos)
             self.mass_pfm.add(mass)
             self.size_pfm.add(size)
             self.offset_pfm.add(offset)
+            self.props_pfm.add(start_life, max_life, self.current_node,bounce)
 
         self.fx.load(pos_0=self.pos_0_pfm.to_texture(),
                     pos_1=self.pos_1_pfm.to_texture(),
@@ -139,8 +117,9 @@ class Demo(DirectObject):
                     one_pos=self.one_pos_pfm.to_texture(),
                     zero_pos=self.zero_pos_pfm.to_texture(),
                     data=data,
-                    texture=self.tex_combine.to_texture(),
-                    offset=self.offset_pfm.to_texture()
+                    texture=self.texture,
+                    offset=self.offset_pfm.to_texture(),
+                    props=self.props_pfm.to_texture()
                     )
         #self.fx.set_emitter_off(0)
         #self.fx.set_emitter_on(1)
@@ -161,7 +140,8 @@ class Demo(DirectObject):
         self.mass_pfm.write('mass.pfm')
         self.size_pfm.write('size.pfm')
         self.offset_pfm.write('offset.pfm')
-        self.tex_combine.write('texture.png')
+        self.props_pfm.write('props.pfm')
+        self.texture.write('texture.png')
 
         #pack the pfm to a multifile
         mf = Multifile()
@@ -195,6 +175,10 @@ class Demo(DirectObject):
         fn.setBinary()
         mf.addSubfile('offset.pfm', fn, 9)
 
+        fn=Filename('props.pfm')
+        fn.setBinary()
+        mf.addSubfile('props.pfm', fn, 9)
+
         fn=Filename('texture.png')
         fn.setBinary()
         mf.addSubfile('texture.png', fn, 0)
@@ -214,6 +198,7 @@ class Demo(DirectObject):
         os.remove('mass.pfm')
         os.remove('size.pfm')
         os.remove('offset.pfm')
+        os.remove('props.pfm')
         os.remove('texture.png')
 
 d=Demo()

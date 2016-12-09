@@ -7,7 +7,7 @@ import json
 __author__ = "wezu"
 __copyright__ = "Copyright 2016"
 __license__ = "ISC"
-__version__ = "0.1"
+__version__ = "0.2"
 __email__ = "wezu.dev@gmail.com"
 __status__ = "Work In Progress"
 
@@ -115,7 +115,7 @@ class Wfx():
             texture
             offset
         """
-        needed_kwargs={'pos_0','pos_1','mass','size','one_pos','zero_pos','data', 'texture', 'offset'}
+        needed_kwargs={'pos_0','pos_1','mass','size','one_pos','zero_pos','data', 'texture', 'offset', 'props'}
 
         if len(args)==1 or 'multifile' in kwargs:
             if 'multifile' in kwargs:
@@ -172,6 +172,7 @@ class Wfx():
                         'zero_pos':kwargs['zero_pos'],
                         'mass_tex':kwargs['mass'],
                         'size_tex':kwargs['size'],
+                        'props_tex':kwargs['props'],
                         'global_force':Vec4(0,0,-1.0,0),
                         'status':status}
             x=kwargs['one_pos'].getXSize()
@@ -204,6 +205,7 @@ class Wfx():
             self.root.setShaderInput('zero_pos', kwargs['zero_pos'])
             self.root.setShaderInput('offset_tex', kwargs['offset'])
             self.root.setShaderInput('size_tex', kwargs['size'])
+            self.root.setShaderInput('props_tex', kwargs['props'])
             self.root.setShaderInput('index_offset', 0.0)
             self.root.setShaderInput('status',status)
             self.points_dual_blend.setShaderInput('index_offset', float(kwargs['data']['blend_index']))
@@ -474,7 +476,6 @@ class BufferRotator():
         y=self.tex0.getYSize()
         #buffer was empty if it has x1 size in any direction
         #may be a driver bug?
-        #not important, the texture should have 256x256 anyway
         if x<2:
             x=2
         if y<2:

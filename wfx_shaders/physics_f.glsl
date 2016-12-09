@@ -7,6 +7,7 @@ uniform sampler2D pos_tex_last;
 uniform sampler2D zero_pos;
 uniform sampler2D one_pos;
 uniform sampler2D mass_tex;
+uniform sampler2D props_tex;
 uniform vec4 global_force;
 //uniform vec4 emitter_data[4*WFX_NUM_EMITTERS];
 uniform mat4 emitter_data[WFX_NUM_EMITTERS];
@@ -23,20 +24,21 @@ void main()
     vec4 pos_one=texture(one_pos, uv);
     vec4 pos_zero=texture(zero_pos, uv);
     vec4 mass_curve=texture(mass_tex, uv);
-    //insert emitter id here for multiple emitters
-    int emitter_id=int(pos_zero.w);
-    //mat4 emitter_matrix= mat4(emitter_data[0+emitter_id*4],emitter_data[1+emitter_id*4],emitter_data[2+emitter_id*4],emitter_data[3+emitter_id*4]);
+    // props.x = start_life,  y=max_life z=emitter_id, w=bounce
+    vec4 props=texture(props_tex, uv);
+    //emitter id here for multiple emitters
+    int emitter_id=int(props.z);
     mat4 emitter_matrix=emitter_data[emitter_id];
 
 
     if (status[emitter_id].w == 0.0)
-        final_pos=pos_last;
+        final_pos=vec4(pos_last.xyz, props.x);
     else
         {
         float life =pos_last.w;
-        float max_life=pos_one.w;
+        float max_life=props.y;
         if (life>max_life)
-            life=-1.0;
+            life=props.x;
 
         if (life<=0.0)
             {

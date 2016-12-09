@@ -12,13 +12,17 @@ flat in float point_size;
 flat in float life;
 in vec4 uv_offset;
 
+out vec4 final_color;
+
 void main()
     {
     vec2 uv = (gl_FragCoord.xy / screen_size - center) / (point_size / screen_size) + 0.5;
-    uv.y*=1.0/uv_offset.w;
-    uv.y-=(ceil(life*uv_offset.w))/uv_offset.w;
-    uv.x*=uv_offset.z;
-    uv.x+=uv_offset.x;
-    vec4 final_color=texture(tex, uv);
-    gl_FragData[0]=final_color;
+
+    //uv_offset.xy = uv offset, uv_offset.z = frame size, uv_offset.w= number of frames
+    uv.y-=1.0;
+    uv*=uv_offset.z;
+    uv+=uv_offset.xy;
+    uv.y-=floor(life*uv_offset.w)*uv_offset.z;
+
+    final_color=texture(tex, uv);
     }

@@ -43,9 +43,20 @@ class Demo(DirectObject):
         #self.particle.set_emitter_force(0, Vec3(0.5, 0, 0))
 
         #space stops the fx animation
+
+        self.active=1
+
         self.accept("space",self.particle.set_pause)
 
         taskMgr.add(self.do_wind, 'do_wind')
+
+
+    def flip_active(self):
+        if self.active == 1:
+            self.active=0
+        else:
+            self.active=1
+        self.particle.set_emitter_active(0, self.active)
 
     def do_wind(self, task):
         v=self.emitter.getPos(render)*0.005

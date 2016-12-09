@@ -8,9 +8,9 @@ uniform vec2 screen_size;
 uniform vec3 camera_pos;
 uniform sampler2D pos_tex;
 uniform sampler2D size_tex;
-uniform sampler2D one_pos;
-uniform sampler2D zero_pos;
 uniform sampler2D offset_tex;
+uniform sampler2D props_tex;
+
 uniform float index_offset;
 uniform vec4 status[WFX_NUM_EMITTERS];
 in vec4 p3d_Vertex;
@@ -29,7 +29,9 @@ void main()
     pos_uv+=vec2(0.5/tex_size,0.5/tex_size);//read from the center of a texel
     uv_offset=textureLod(offset_tex, pos_uv, 0);
     vec4 offset=textureLod(pos_tex, pos_uv, 0);
-    life=clamp(offset.w/textureLod(one_pos, pos_uv, 0).w, 0.0, 1.0);
+    vec4 props=textureLod(props_tex, pos_uv, 0);
+    life=clamp(offset.w/props.y, 0.0, 0.999);
+    //life=offset.w/props.y;
     vec4 size_curve=textureLod(size_tex, pos_uv, 0);
     vec4 vert = p3d_Vertex;
     vert.xyz+=offset.xyz;
@@ -46,8 +48,7 @@ void main()
     if (offset.w<0.0)
         point_size = 0.0;
 
-    vec4 pos_zero=textureLod(zero_pos, pos_uv, 0);
-    int emmiter_id=int(pos_zero.w);
+    int emmiter_id=int(props.z);
     if (status[emmiter_id].w == 0.0)
         point_size = 0.0;
 

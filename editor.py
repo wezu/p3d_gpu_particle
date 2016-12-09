@@ -43,7 +43,7 @@ class Editor(DirectObject):
                       "Particle starting velocity, given as a direction vector. This should be a Vec3, or a list/tupe of 3 elements (each a float or int) or a Python function/expression returning valid data. The alias 'vec' may be used in the fields bellow to get the vector in the current iteration.",
                       "Initial life. Life is incremented by 1 each simulation step (1/60seconds). This should be an integer (or a function/expression returning one), negative numbers mean that the particle will be spawned in the future. The alias 'life' may be used in other fields.",
                       "The maximum life of a particle, the time a particle will be displayed given in 1/60sec steps, eg.  max life = 60 will show a particle for 1 second and then reset. This should be an integer (or a function/expression returning one). The alias 'max_life' may be used in other fields.",
-                      "Path to the texture used by the particle. If the texture is square it will be used as a static frame, else it will be cut in square frames and used as an animation. The source texture will be cut and merged with other textures and saved in the particle file. Check the readme for more information. ",
+                      "'Bounce' determines the final speed of a particle after a collision with the environment (if collisions are enabled!), 1.0 means it will keep 100% of its velocity, 0.0 will make the particle stop on impact. Values greater than 1.0 and negative are also valid, but nonsense",
                       "The particle emitters can be turned on and off, click to toggle. The current Node can be changed using the arrow buttons.",
                       "The path where the particle file will be saved. This is relative to the editor. If the extension is omitted .wfx will be added automagically. Click 'Write file' to write the file, 'Generate' only generates the particle data.",
                       "You can delete the last particle generated (or even all of them). Type in how many particles (counting from the end) to delete and click 'Remove Last'."]
@@ -59,8 +59,6 @@ class Editor(DirectObject):
         self.fx=Wfx()
         #set the size of the texture atlas here
         self.tex_combine=TextureCombiner(frame_size=128, num_frames=16)
-
-        self.gui.popup("This editor is not functional yet. Clicking 'generate' twice will make it explode, node menagement is broken, can't remove generated stuff")
 
     def exe(self, command, locals=None, expect_vec3=False, expect_int=False, expect_float=False):
         #make sure we can pinpoint 'self' somhow for functions from outside
@@ -83,6 +81,8 @@ class Editor(DirectObject):
             elif expect_float:
                 if isinstance(r, float):
                     return r
+                elif r==0 or r is None:
+                    return 0.0
                 else:
                     raise TypeError('Expected a float')
             else:
@@ -183,47 +183,6 @@ class Editor(DirectObject):
             self.gui.popup("Can't generate "+str(number)+" particles, You only have "+str(particle_left)+" particles left!")
             return
 
-        #texture magic
-        number_of_frames=self.tex_combine.num_frames
-        #we need to know if a new texture was added or an old one is reused
-        #first see what we had
-        old_tex_num=len(self.tex_combine.known_columns)
-        #add the new texture or get an index to something already there
-        try:
-            tex_offset_id=self.tex_combine.add(self.panel_entry_tex.get())
-            num_tex=len(self.tex_combine.known_columns)
-            #did we add something? yes? move all the indexes in the old offset tex
-            if num_tex > 1 and num_tex > old_tex_num:
-                for i in range(self.offset_pfm.num_added):
-                    v=self.offset_pfm.get(i)
-                    #print v,
-                    if v[0]!= 0.0:
-                        old_index=round(1.0/float(v[0])-1.0)
-                    else:
-                        old_index=0.0
-                    v[0]=old_index*1.0/float(num_tex)
-                    v[2]=1.0/float(num_tex)
-                    #print v
-                    self.offset_pfm.set(i, v)
-                for i in range(self.offset_pfm.num_added_offset):
-                    v=self.offset_pfm.get(i+self.offset_pfm.offset)
-                    #print v,
-                    if v[0]!= 0.0:
-                        old_index=round(1.0/float(v[0])-1.0)
-                    else:
-                        old_index=0.0
-                    v[0]=old_index*1.0/float(num_tex)
-                    v[2]=1.0/float(num_tex)
-                    #print v
-                    self.offset_pfm.set(i+self.offset_pfm.offset, v)
-        except BaseException as e:
-            self.gui.popup('Texture error: '+str(e))
-            #print e
-            return
-        #print 'tex_offset_id', tex_offset_id, 'num_tex',num_tex
-        offset=Vec4((1.0/num_tex)*(tex_offset_id-1),0.0, 1.0/num_tex, 16.0)
-        #print offset
-
         emitter_id=self.current_node
         mass=Vec4(self.values['mass_offset'],self.values['mass_freq'],self.values['mass_multi'],self.values['mass_x_offset'])
         size=Vec4(self.values['size_offset'],self.values['size_freq'],self.values['size_multi'],self.values['size_x_offset'])
@@ -233,6 +192,9 @@ class Editor(DirectObject):
 
 
         loop_locals={'number':number}
+
+        #TODO:
+        bounce=0.0
 
         for n in range(1, number+1):
             #get the values and check if they are valid
@@ -259,20 +221,14 @@ class Editor(DirectObject):
                 return
             loop_locals['max_life']=max_life
             #write the values
-            #print 'pos_0'
             self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life, offset=use_offset)
-            #print 'pos_1'
             self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0, offset=use_offset)
-            #print 'zero_pos'
-            self.zero_pos_pfm.add(zero_pos, self.current_node, offset=use_offset)
-            #print 'one_pos'
-            self.one_pos_pfm.add(one_pos,max_life, offset=use_offset)
-            #print 'mass'
+            self.zero_pos_pfm.add(zero_pos, offset=use_offset)
+            self.one_pos_pfm.add(one_pos,offset=use_offset)
             self.mass_pfm.add(mass, offset=use_offset)
-            #print 'size'
             self.size_pfm.add(size, offset=use_offset)
-            #print 'offset'
-            self.offset_pfm.add(offset, offset=use_offset)
+            self.offset_pfm.add(self.tex_offset, offset=use_offset)
+            self.props_pfm.add(start_life, max_life, self.current_node, bounce, offset=use_offset)
 
         data={'num_emitters':len(self.node)+1,
                 'status':self.active,
@@ -284,8 +240,9 @@ class Editor(DirectObject):
                     one_pos=self.one_pos_pfm.to_texture(),
                     zero_pos=self.zero_pos_pfm.to_texture(),
                     data=data,
-                    texture=self.tex_combine.to_texture(),
-                    offset=self.offset_pfm.to_texture()
+                    texture=self.texture,
+                    offset=self.offset_pfm.to_texture(),
+                    props=self.props_pfm.to_texture()
                     )
 
         for i, node in enumerate(self.node):
@@ -314,7 +271,8 @@ class Editor(DirectObject):
         self.mass_pfm.write('mass.pfm')
         self.size_pfm.write('size.pfm')
         self.offset_pfm.write('offset.pfm')
-        self.tex_combine.write('texture.png')
+        self.props_pfm.write('props.pfm')
+        self.texture.write('texture.png')
 
         #pack the pfm to a multifile
         mf = Multifile()
@@ -348,6 +306,10 @@ class Editor(DirectObject):
         fn.setBinary()
         mf.addSubfile('offset.pfm', fn, 9)
 
+        fn=Filename('props.pfm')
+        fn.setBinary()
+        mf.addSubfile('props.pfm', fn, 9)
+
         fn=Filename('texture.png')
         fn.setBinary()
         mf.addSubfile('texture.png', fn, 0)
@@ -368,6 +330,7 @@ class Editor(DirectObject):
         os.remove('mass.pfm')
         os.remove('size.pfm')
         os.remove('offset.pfm')
+        os.remove('props.pfm')
         os.remove('texture.png')
 
 
@@ -385,6 +348,7 @@ class Editor(DirectObject):
         self.mass_pfm.remove_last(numer_to_delete, offset=use_offset)
         self.size_pfm.remove_last(numer_to_delete, offset=use_offset)
         self.offset_pfm.remove_last(numer_to_delete, offset=use_offset)
+        self.props_pfm.remove_last(numer_to_delete, offset=use_offset)
 
 
         data={'num_emitters':len(self.node)+1,
@@ -397,8 +361,9 @@ class Editor(DirectObject):
                     one_pos=self.one_pos_pfm.to_texture(),
                     zero_pos=self.zero_pos_pfm.to_texture(),
                     data=data,
-                    texture=self.tex_combine.to_texture(),
-                    offset=self.offset_pfm.to_texture()
+                    texture=self.texture,
+                    offset=self.offset_pfm.to_texture(),
+                    props=self.props_pfm.to_texture()
                     )
 
         if self.additive_blend:
@@ -408,6 +373,114 @@ class Editor(DirectObject):
         self.values['particle_left'][id]+=numer_to_delete
         self.panel_txt_number['text']=str(self.values['particle_left'][id])
         self.panel_entry_del.set('0')
+
+    def update_tex_editor(self):
+        self.tex_entry_u.set(str(self.tex_select_frame.u))
+        self.tex_entry_v.set(str(self.tex_select_frame.v))
+        self.tex_entry_size.set(str(self.tex_select_frame.frame_size))
+        self.tex_entry_num.set(str(self.tex_select_frame.num_frame))
+
+    def update_tex_select(self, value=None):
+        u=self.exe(self.tex_entry_u.get(), expect_float=True)
+        v=self.exe(self.tex_entry_v.get(), expect_float=True)
+        size=self.exe(self.tex_entry_size.get(), expect_float=True)
+        num=self.exe(self.tex_entry_num.get(), expect_float=True)
+
+        self.tex_select_frame.set_selection_pos((u,v))
+        self.tex_select_frame.set_selection_frame(size, size*num, num)
+
+    def load_tex_atlas(self, value=None):
+        if self.values['particle_left'][0]+self.values['particle_left'][1]<self.values['particle_pool']:
+            self.gui.popup("You can only change the texture atlas befor generating any particles!")
+            return
+        path=self.tex_entry_path.get()
+        try:
+            self.texture=loader.loadTexture(path)
+        except:
+            self.gui.popup("Could not load texture: "+path)
+            return
+        self.tex_preview_frame['frameTexture']=self.texture
+
+    def set_tex_select_snap(self, value=None):
+        self.tex_select_frame.snap=self.exe(self.tex_entry_snap.get(), expect_float=True)
+
+    def hide_tex_editor(self):
+        self.panel_frame.show()
+        self.tex_frame.hide()
+        self.tex_offset=Vec4(self.tex_select_frame.u, self.tex_select_frame.v, self.tex_select_frame.frame_size, self.tex_select_frame.num_frame)
+
+    def tex_u_plus(self):
+        u=self.exe(self.tex_entry_u.get(), expect_float=True)+self.tex_select_frame.snap
+        self.tex_entry_u.set(str(u))
+        self.update_tex_select()
+
+    def tex_u_minus(self):
+        u=self.exe(self.tex_entry_u.get(), expect_float=True)-self.tex_select_frame.snap
+        self.tex_entry_u.set(str(u))
+        self.update_tex_select()
+
+    def tex_v_plus(self):
+        v=self.exe(self.tex_entry_v.get(), expect_float=True)+self.tex_select_frame.snap
+        self.tex_entry_v.set(str(v))
+        self.update_tex_select()
+
+    def tex_v_minus(self):
+        v=self.exe(self.tex_entry_v.get(), expect_float=True)-self.tex_select_frame.snap
+        self.tex_entry_v.set(str(v))
+        self.update_tex_select()
+
+    def tex_size_plus(self):
+        size=self.exe(self.tex_entry_size.get(), expect_float=True)+self.tex_select_frame.snap
+        self.tex_entry_size.set(str(size))
+        self.update_tex_select()
+
+    def tex_size_minus(self):
+        size=self.exe(self.tex_entry_size.get(), expect_float=True)-self.tex_select_frame.snap
+        self.tex_entry_size.set(str(size))
+        self.update_tex_select()
+
+    def tex_num_plus(self):
+        num=self.exe(self.tex_entry_num.get(), expect_float=True)+1.0
+        self.tex_entry_num.set(str(num))
+        self.update_tex_select()
+
+    def tex_num_minus(self):
+        num=self.exe(self.tex_entry_num.get(), expect_float=True)-1.0
+        if num <1.0:
+            num=1.0
+        self.tex_entry_num.set(str(num))
+        self.update_tex_select()
+
+    def show_tex_editor(self):
+        self.panel_frame.hide()
+        try:
+            self.tex_frame.show()
+        except AttributeError:
+            self.tex_frame=self.gui.frame('editor/ui/tex_panel.png', (512,0), self.gui.top_left)
+            self.tex_background_frame=self.gui.frame('editor/ui/checkers.png', (-512,0), self.tex_frame)
+            self.tex_preview_frame=self.gui.frame('editor/ui/checkers.png', (-512,0), self.tex_frame)
+            self.tex_preview_frame['frameTexture']='tex/atlas1.png'
+            self.tex_select_frame=self.gui.drag_select_frame((512, 512), (-512,0), self.tex_frame, self.update_tex_editor)
+            self.tex_entry_u=self.gui.entry('0.0', (210, 32), (7,32), self.tex_frame, command=self.update_tex_select)
+            self.tex_entry_v=self.gui.entry('1.0', (210, 32), (7,96), self.tex_frame, command=self.update_tex_select)
+            self.tex_entry_size=self.gui.entry('0.0625', (210, 32), (7,160), self.tex_frame, command=self.update_tex_select)
+            self.tex_entry_num=self.gui.entry('1.0', (210, 32), (7,224), self.tex_frame, command=self.update_tex_select)
+            self.tex_entry_path=self.gui.entry('tex/atlas1.png', (242, 32), (7,320), self.tex_frame, command=self.load_tex_atlas)
+            self.tex_entry_snap=self.gui.entry('1.0/16.0', (242, 32), (7,383), self.tex_frame, command=self.set_tex_select_snap)
+
+            self.tex_u_plus=self.gui.button('editor/ui/highlight_3.png', (218, 32), self.tex_frame, self.tex_u_plus, repeat=0.2)
+            self.tex_u_minus=self.gui.button('editor/ui/highlight_3.png', (218, 48), self.tex_frame, self.tex_u_minus, repeat=0.2)
+
+            self.tex_v_plus=self.gui.button('editor/ui/highlight_3.png', (218, 96), self.tex_frame, self.tex_v_plus, repeat=0.2)
+            self.tex_v_minus=self.gui.button('editor/ui/highlight_3.png', (218, 112), self.tex_frame, self.tex_v_minus, repeat=0.2)
+
+            self.tex_size_plus=self.gui.button('editor/ui/highlight_3.png', (218, 160), self.tex_frame, self.tex_size_plus, repeat=0.2)
+            self.tex_size_minus=self.gui.button('editor/ui/highlight_3.png', (218, 176), self.tex_frame, self.tex_size_minus, repeat=0.2)
+
+            self.tex_num_plus=self.gui.button('editor/ui/highlight_3.png', (218, 224), self.tex_frame, self.tex_num_plus, repeat=0.2)
+            self.tex_num_minus=self.gui.button('editor/ui/highlight_3.png', (218, 240), self.tex_frame, self.tex_num_minus, repeat=0.2)
+            self.tex_done_button=self.gui.button('editor/ui/highlight_2.png', (96, 464), self.tex_frame, self.hide_tex_editor)
+
 
     def freq_plus(self):
         self.graph_freq_entry.set(str(self.graph.inputs['freq']+0.05))
@@ -580,13 +653,20 @@ class Editor(DirectObject):
 
             self.panel_txt_number['text']=str(self.values['particle_left'][0])
             #setup all the pfm generators
-            self.pos_0_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
-            self.pos_1_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
-            self.one_pos_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
-            self.zero_pos_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
-            self.mass_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
-            self.size_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
-            self.offset_pfm=PfmGen(buff_size[0], buff_size[1], self.values['blending_pool'])
+            x=buff_size[0]
+            y=buff_size[1]
+            offset=self.values['blending_pool']
+
+            self.pos_0_pfm=PfmGen(x,y, offset)
+            self.pos_1_pfm=PfmGen(x,y, offset)
+            self.one_pos_pfm=PfmGen(x,y, offset, num_channels=3)
+            self.zero_pos_pfm=PfmGen(x,y, offset, num_channels=3)
+            self.mass_pfm=PfmGen(x,y, offset)
+            self.size_pfm=PfmGen(x,y, offset)
+            self.offset_pfm=PfmGen(x,y, offset)
+            self.props_pfm=PfmGen(x,y, offset)
+            self.texture=loader.loadTexture('tex/atlas1.png')
+            self.tex_offset=Vec4(0.0, 1.0, 0.0625, 1.0)
             #print self.values
         else:
             self.gui.popup(error_msg)
@@ -617,10 +697,11 @@ class Editor(DirectObject):
             self.panel_entry_vec=self.gui.entry('Vec3(uniform(-0.1, 0.1), uniform(-0.1, 0.1), 0.0)', (832, 32), (160,96), self.panel_frame)
             self.panel_entry_life=self.gui.entry('randint(-512, 0)', (827, 32), (165,128), self.panel_frame)
             self.panel_entry_max_life=self.gui.entry('randint(10.0, 50.0)', (832, 32), (160,160), self.panel_frame)
-            self.panel_entry_tex=self.gui.entry('tex/fire2.png', (864, 32), (128,192), self.panel_frame)
+            #self.panel_entry_tex=self.gui.entry('tex/fire2.png', (864, 32), (128,192), self.panel_frame)
             self.panel_entry_save=self.gui.entry('default.wfx', (384, 32), (608,288), self.panel_frame)
             self.panel_entry_del=self.gui.entry('0', (160, 32), (780,224), self.panel_frame)
             self.panel_entry_force=self.gui.entry('Vec3(0.0, 0.0,-1.0)', (408, 32), (355,256), self.panel_frame, command=self.set_force)
+            self.panel_entry_bounce=self.gui.entry('0.1', (608, 32), (384,192), self.panel_frame)
 
             #buttons
             self.panel_button_blend=self.gui.button('editor/ui/highlight_7.png', (517, 0), self.panel_frame, self.change_blend_mode)
@@ -632,6 +713,7 @@ class Editor(DirectObject):
             self.panel_button_next_id=self.gui.button('editor/ui/highlight_3.png', (224, 256), self.panel_frame, self.next_node, repeat=0.25)
             self.panel_button_prev_id=self.gui.button('editor/ui/highlight_3.png', (224, 272), self.panel_frame, self.prev_node, repeat=0.25)
             self.panel_button_del=self.gui.button('editor/ui/highlight_6.png', (512, 224), self.panel_frame, self.del_particles)
+            self.panel_button_tex=self.gui.button('editor/ui/highlight_6.png', (0, 192), self.panel_frame, self.show_tex_editor)
 
 
             self.panel_txt_number=self.gui.txt("1000", (224, 0),self.panel_frame)
