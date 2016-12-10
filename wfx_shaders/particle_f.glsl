@@ -2,6 +2,10 @@
 #version 140
 #pragma include "inc_config.glsl"
 
+#ifndef WFX_AUX_RENDER_TARGET
+uniform sampler2D tex_aux;
+#endif
+
 uniform vec2 screen_size;
 uniform sampler2D tex;
 
@@ -12,7 +16,6 @@ flat in float point_size;
 flat in float life;
 in vec4 uv_offset;
 
-out vec4 final_color;
 
 void main()
     {
@@ -24,5 +27,9 @@ void main()
     uv+=uv_offset.xy;
     uv.y-=floor(life*uv_offset.w)*uv_offset.z;
 
-    final_color=texture(tex, uv);
+    gl_FragData[0]=texture(tex, uv);
+
+    #ifndef WFX_AUX_RENDER_TARGET
+    gl_FragData[1]=texture(tex_aux, uv);
+    #endif
     }

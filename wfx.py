@@ -15,6 +15,7 @@ class Wfx():
     def __init__(self,
                 num_emitters=1,
                 update_speed=60.0,
+                use_aux_texture=False,
                 physics_shader=None,
                 particle_shader=None,
                 camera=None,
@@ -26,6 +27,7 @@ class Wfx():
 
         Args:
             update_speed (float)    - how fast will the simulation run in FPS
+            use_aux_texture(bool)   - do the particles need to render to a second render target
             physics_shader(Shader)  - shader that will run the physic simulation
             particle_shader(Shader) - shader that will draw vertex as textures billbords
             camera(NodePath/Camera) - the default scene camera
@@ -35,10 +37,12 @@ class Wfx():
         """
         #setup
         self.num_emitters=num_emitters
+        self.use_aux_texture=int(use_aux_texture)
         #write the include for shaders
         with open('wfx_shaders/inc_config.glsl', 'w') as out_file:
             out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
             out_file.write('#define WFX_NUM_EMITTERS '+str(num_emitters))
+            out_file.write('\n#define WFX_AUX_RENDER_TARGET '+str(self.use_aux_texture))
         self.update_speed=1.0/update_speed
         #the shader that will run the physic simulation
         self.physics_shader=Shader.load(Shader.SL_GLSL,'wfx_shaders/physics_v.glsl', 'wfx_shaders/physics_f.glsl')
@@ -72,14 +76,16 @@ class Wfx():
         self.pause=False
         self.ping_pong=None
         self.task=None
-        #update task
-        #taskMgr.add(self._update, 'wfx_update_tsk')
 
+    ###################
+    #Private functions:
+    ###################
     def _reload_shaders(self):
         #print '_reload_shaders',self.num_emitters
         with open('wfx_shaders/inc_config.glsl', 'w') as out_file:
             out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
             out_file.write('#define WFX_NUM_EMITTERS '+str(self.num_emitters))
+            out_file.write('\n#define WFX_AUX_RENDER_TARGET '+str(self.use_aux_texture))
 
         physics_v=self.physics_shader.getFilename(Shader.ST_vertex)
         physics_f=self.physics_shader.getFilename(Shader.ST_fragment)
@@ -99,6 +105,54 @@ class Wfx():
         except AttributeError:
             pass
 
+    def _set_blend(self, node,  mode):
+        if mode=='dual':
+            node.setTransparency(TransparencyAttrib.MDual, 1)
+        elif mode =='add':
+            color_attrib = ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_alpha, ColorBlendAttrib.O_one )
+            node.setAttrib(color_attrib)
+            node.setBin("fixed", 0)
+            node.setDepthTest(True)
+            node.setDepthWrite(False)
+
+    def _make_points(self, num_points):
+        #print '_make_points', num_points
+        if num_points>1:
+            aformat = GeomVertexArrayFormat("vertex", 1, GeomEnums.NT_uint8, GeomEnums.C_other)
+            format = GeomVertexFormat.register_format(GeomVertexFormat(aformat))
+            vdata = GeomVertexData('abc', format, GeomEnums.UH_static)
+            vdata.set_num_rows(num_points)
+            geom = Geom(vdata)
+            p = GeomPoints(Geom.UH_static)
+            #p.add_vertex(0)
+            p.addNextVertices(num_points)
+            geom.add_primitive(p)
+            geom.set_bounds(OmniBoundingVolume())
+            geom_node = GeomNode('point')
+            geom_node.addGeom(geom)
+            point_node=render.attachNewNode(geom_node)
+        else:
+            point_node=render.attachNewNode('empty')
+        point_node.setRenderMode(RenderModeAttrib.MPoint, 1)
+        point_node.reparentTo(self.root)
+        return point_node
+
+    def _reset_window_size(self, window=None):
+        if window:
+            self.window=window
+        self.root.setShaderInput('screen_size', Vec2(self.window.getXSize(), self.window.getYSize()))
+
+    def _update(self, task):
+        dt=globalClock.getDt()
+        self.root.setShaderInput('camera_pos', base.camera.getPos(self.root))
+        if not self.pause:
+            self.ping_pong.update(dt)
+        self.root.setShaderInput('pos_tex', self.ping_pong.output)
+        return task.again
+
+    ###################
+    #Public functions:
+    ###################
     def load(self, *args, **kwargs):
         """
         Loads values needed to run the simulation.
@@ -153,6 +207,10 @@ class Wfx():
         elif needed_kwargs <= set(kwargs): #check if all the needed args are given
             #print kwargs['data']
             self.num_emitters=kwargs['data']['num_emitters']
+            if 'aux_texture' in kwargs:
+                self.use_aux_texture=1
+            else:
+                self.use_aux_texture=0
             self._reload_shaders() #make sure the inc is written!
             self.current_status=kwargs['data']['status']
             if 'forces' in kwargs['data']:
@@ -208,6 +266,8 @@ class Wfx():
             self.root.setShaderInput('props_tex', kwargs['props'])
             self.root.setShaderInput('index_offset', 0.0)
             self.root.setShaderInput('status',status)
+            if 'aux_texture' in kwargs:
+                self.root.setShaderInput('aux_texture', kwargs['aux_texture'])
             self.points_dual_blend.setShaderInput('index_offset', float(kwargs['data']['blend_index']))
 
 
@@ -221,50 +281,31 @@ class Wfx():
                 print 'arg:', arg
             print kwargs
 
-    def _set_blend(self, node,  mode):
-        if mode=='dual':
-            node.setTransparency(TransparencyAttrib.MDual, 1)
-        elif mode =='add':
-            color_attrib = ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_alpha, ColorBlendAttrib.O_one )
-            node.setAttrib(color_attrib)
-            node.setBin("fixed", 0)
-            node.setDepthTest(True)
-            node.setDepthWrite(False)
-
-    def _make_points(self, num_points):
-        #print '_make_points', num_points
-        if num_points>1:
-            aformat = GeomVertexArrayFormat("vertex", 1, GeomEnums.NT_uint8, GeomEnums.C_other)
-            format = GeomVertexFormat.register_format(GeomVertexFormat(aformat))
-            vdata = GeomVertexData('abc', format, GeomEnums.UH_static)
-            vdata.set_num_rows(num_points)
-            geom = Geom(vdata)
-            p = GeomPoints(Geom.UH_static)
-            #p.add_vertex(0)
-            p.addNextVertices(num_points)
-            geom.add_primitive(p)
-            geom.set_bounds(OmniBoundingVolume())
-            geom_node = GeomNode('point')
-            geom_node.addGeom(geom)
-            point_node=render.attachNewNode(geom_node)
-        else:
-            point_node=render.attachNewNode('empty')
-        point_node.setRenderMode(RenderModeAttrib.MPoint, 1)
-        point_node.reparentTo(self.root)
-        return point_node
-
     def start(self):
+        """
+        Starts the particle system, call this after calling load()
+        """
         self.root.show()
         if self.task is None:
             self.task=taskMgr.add(self._update, 'wfx_update_tsk')
 
     def set_pause(self):
+        """
+        Pauses the particle system without hiding anything, use this for 'time stop'
+        ..or just set self.pause to True
+        """
         self.pause = not self.pause
 
     def restart(self):
+        """
+        Restarts the whole system to the initial value (after load() was called)
+        """
         self.ping_pong.state=0
 
     def reset(self):
+        """
+        Resets the system, removes all values set by load()
+        """
         taskMgr.remove(self.task)
         self.points_dual_blend.removeNode()
         self.points_add_blend.removeNode()
@@ -272,24 +313,28 @@ class Wfx():
         self.ping_pong=None
 
     def cleanup(self):
+        """
+        Removes everything, call this when you now longer need the particle system
+        """
         self.reset()
         self.physics_shader=None
         self.particle_shader=None
         self.root=None
         self.window=None
 
-    def _reset_window_size(self, window=None):
-        if window:
-            self.window=window
-        self.root.setShaderInput('screen_size', Vec2(self.window.getXSize(), self.window.getYSize()))
-
     def set_global_force(self, force):
+        """
+        Sets a force affecting all particles, force should be vector in world space (list/tuple will also work)
+        """
         try:
             self.ping_pong.setShaderInput('global_force', Vec4(force[0], force[1], force[2], 0.0))
         except AttributeError:
             pass
 
     def set_emitter_force(self, emitter_id, force):
+        """
+        Sets a local force affecting all particles with a given emitter_id
+        """
         try:
             status=PTA_LVecBase4f()
             for i in range(self.num_emitters):
@@ -312,6 +357,9 @@ class Wfx():
             pass
 
     def set_emitter_active(self, emitter_id, active):
+        """
+        Turns on (active=1) or off (active=0) all the particles with a given emitter_id
+        """
         try:
             status=PTA_LVecBase4f()
             for i in range(self.num_emitters):
@@ -332,26 +380,40 @@ class Wfx():
             pass
 
     def set_emitter_on(self, emitter_id):
+        """
+        Turns on all the particles with a given emitter_id
+        """
         self.set_emitter_active(emitter_id, 1.0)
 
     def set_emitter_off(self, emitter_id):
+        """
+        Turns off all the particles with a given emitter_id
+        """
         self.set_emitter_active(emitter_id, 0.0)
 
     def set_emitter_node(self, emitter_id, node):
+        """
+        Links a node with a emitter_id.
+
+        When the node moves or rotates, then the origin of particles
+        with that emitter_id moves or rotates with it.
+        """
         self.ping_pong.emitters[emitter_id]=node
 
-    def _update(self, task):
-        dt=globalClock.getDt()
-        self.root.setShaderInput('camera_pos', base.camera.getPos(self.root))
-        if not self.pause:
-            self.ping_pong.update(dt)
-        self.root.setShaderInput('pos_tex', self.ping_pong.output)
-        return task.again
-
+    def on_window_resize(self):
+        """
+        Call this function each time the window changes its size!
+        """
+        self._reset_window_size()
 
 
 
 class BufferRotator():
+    """
+    This is a helper class that switches between 3 texture buffers,
+    where each buffer is in turn the output or one of the inputs.
+    You don't need to do anything with this class.
+    """
     def __init__(self, shader, tex0, tex1, shader_inputs={}, emitters=None, bits=32, update_speed=None):
         #upadate speed - how often is the who thing run
         if update_speed:
@@ -560,7 +622,6 @@ class BufferRotator():
         self.texC=None
         self.output=None
         self.emitters=None
-
 
     def update(self, dt):
         self.time+=dt

@@ -2,6 +2,8 @@ from __future__ import print_function
 from panda3d.core import loadPrcFileData
 loadPrcFileData('', 'textures-power-2 None')
 loadPrcFileData('', 'win-size 1024 768')
+loadPrcFileData('', 'show-frame-rate-meter 1')
+loadPrcFileData('', 'sync-video 0')
 from panda3d.core import *
 from direct.showbase.DirectObject import DirectObject
 from direct.showbase import ShowBase
@@ -29,6 +31,11 @@ class Editor(DirectObject):
 
         #init the GUI sub system
         self.gui=GUI()
+
+        #put the frame metter at the bottom
+        self.fps_node=NodePath(base.frameRateMeter)
+        self.fps_node.wrtReparentTo(self.gui.bottom_right)
+        self.fps_node.setPos(0, 0, 20)
 
         #text for the help popups
         self.help_txt=["Particle Pool is the number of available particles, and it's also the size of the texture used internally. The value will be rounded to the nearest a power-of-two size.",
@@ -401,6 +408,33 @@ class Editor(DirectObject):
             return
         self.tex_preview_frame['frameTexture']=self.texture
 
+    def load_aux_tex_atlas(self, value=None):
+        if self.values['particle_left'][0]+self.values['particle_left'][1]<self.values['particle_pool']:
+            self.gui.popup("You can only change the texture atlas befor generating any particles!")
+            return
+        path=self.tex_entry_aux.get()
+        if path=='':
+            self.gui.popup("AUX Texture has been disabled.")
+            self.tex_preview_frame['frameTexture']=self.texture
+            self.aux_texture=None
+            return
+        try:
+            self.aux_texture=loader.loadTexture(path)
+            self.tex_preview_frame['frameTexture']=self.aux_texture
+            self.gui.popup("AUX Texture loaded! To disable it enter an empty string and press [Enter], use the eye button to toggle aux and color texture preview.\nThe Aux Texture can provide material information or data for post-processing, custom shaders are needed!")
+        except:
+            self.gui.popup("AUX Texture has been disabled, could not load texture: "+path)
+            self.tex_preview_frame['frameTexture']=self.texture
+            self.aux_texture=None
+            return
+
+    def preview_aux_texture(self):
+        if self.aux_texture:
+            if self.tex_preview_frame['frameTexture'] == self.aux_texture:
+                self.tex_preview_frame['frameTexture']=self.texture
+            else:
+                self.tex_preview_frame['frameTexture']=self.aux_texture
+
     def set_tex_select_snap(self, value=None):
         self.tex_select_frame.snap=self.exe(self.tex_entry_snap.get(), expect_float=True)
 
@@ -465,8 +499,9 @@ class Editor(DirectObject):
             self.tex_entry_v=self.gui.entry('1.0', (210, 32), (7,96), self.tex_frame, command=self.update_tex_select)
             self.tex_entry_size=self.gui.entry('0.0625', (210, 32), (7,160), self.tex_frame, command=self.update_tex_select)
             self.tex_entry_num=self.gui.entry('1.0', (210, 32), (7,224), self.tex_frame, command=self.update_tex_select)
-            self.tex_entry_path=self.gui.entry('tex/atlas1.png', (242, 32), (7,320), self.tex_frame, command=self.load_tex_atlas)
-            self.tex_entry_snap=self.gui.entry('1.0/16.0', (242, 32), (7,383), self.tex_frame, command=self.set_tex_select_snap)
+            self.tex_entry_path=self.gui.entry('tex/atlas1.png', (242, 32), (7,288), self.tex_frame, command=self.load_tex_atlas)
+            self.tex_entry_aux=self.gui.entry('', (242, 32), (7,352), self.tex_frame, command=self.load_aux_tex_atlas)
+            self.tex_entry_snap=self.gui.entry('1.0/16.0', (242, 32), (7,416), self.tex_frame, command=self.set_tex_select_snap)
 
             self.tex_u_plus=self.gui.button('editor/ui/highlight_3.png', (218, 32), self.tex_frame, self.tex_u_plus, repeat=0.2)
             self.tex_u_minus=self.gui.button('editor/ui/highlight_3.png', (218, 48), self.tex_frame, self.tex_u_minus, repeat=0.2)
@@ -480,6 +515,8 @@ class Editor(DirectObject):
             self.tex_num_plus=self.gui.button('editor/ui/highlight_3.png', (218, 224), self.tex_frame, self.tex_num_plus, repeat=0.2)
             self.tex_num_minus=self.gui.button('editor/ui/highlight_3.png', (218, 240), self.tex_frame, self.tex_num_minus, repeat=0.2)
             self.tex_done_button=self.gui.button('editor/ui/highlight_2.png', (96, 464), self.tex_frame, self.hide_tex_editor)
+
+            self.tex_aux_preview_button=self.gui.button('editor/ui/highlight_9.png', (0, 320), self.tex_frame, self.preview_aux_texture)
 
 
     def freq_plus(self):
@@ -667,6 +704,7 @@ class Editor(DirectObject):
             self.props_pfm=PfmGen(x,y, offset)
             self.texture=loader.loadTexture('tex/atlas1.png')
             self.tex_offset=Vec4(0.0, 1.0, 0.0625, 1.0)
+            self.aux_texture=None
             #print self.values
         else:
             self.gui.popup(error_msg)
