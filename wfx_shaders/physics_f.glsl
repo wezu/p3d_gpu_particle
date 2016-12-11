@@ -2,6 +2,12 @@
 #version 140
 #pragma include "inc_config.glsl"
 
+
+#if WFX_USE_HEIGHTMAP_COLLISIONS==1
+uniform sampler2D collision_map;
+uniform float world_size;
+#endif
+
 uniform sampler2D pos_tex_prelast;
 uniform sampler2D pos_tex_last;
 uniform sampler2D zero_pos;
@@ -59,6 +65,19 @@ void main()
                 float mass= (sin((life/max_life)+mass_curve.x)*3.141592653589793*mass_curve.y)*mass_curve.z + mass_curve.w;
                 velocity += (force*mass)*0.05;
                 vec3 new_pos=pos_last.xyz+velocity;
+
+                #if WFX_USE_HEIGHTMAP_COLLISIONS==1
+                vec4 hm=texture(collision_map, (pos_last.xy+vec2(world_size/2.0, world_size/2.0))/world_size);
+                if ((new_pos.z<hm.w)&&(pos_last.z>hm.w-WFX_COLLISION_DEPTH))//&&(hm.xyz!=vec3(0.0,0.0,0.0)))
+                    {
+                    new_pos-=velocity;
+                    new_pos.z=hm.w;
+                    velocity=reflect(hm.xyz, normalize(velocity))*length(velocity)*0.12;
+                    new_pos.xyz+=velocity;
+                    }
+                #endif
+
+
                 final_pos=vec4(new_pos.xyz, life+1.0);
                 }
             }

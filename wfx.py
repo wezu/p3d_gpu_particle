@@ -21,6 +21,10 @@ class Wfx():
                 camera=None,
                 root=None,
                 window=None,
+                heightmap_resolution=0,
+                world_size=100,
+                heightmap_padding=0.5,
+                collision_depth=1.0,
                 heightmap_mask=17):
         """
         Setup
@@ -38,11 +42,21 @@ class Wfx():
         #setup
         self.num_emitters=num_emitters
         self.use_aux_texture=int(use_aux_texture)
+        self.world_size=world_size
+        self.use_heightmap_collision=0
+        self.heightmap_padding=heightmap_padding
+        self.collision_depth=collision_depth
+        if heightmap_resolution>0:
+            self.use_heightmap_collision=1
         #write the include for shaders
         with open('wfx_shaders/inc_config.glsl', 'w') as out_file:
             out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
             out_file.write('#define WFX_NUM_EMITTERS '+str(num_emitters))
             out_file.write('\n#define WFX_AUX_RENDER_TARGET '+str(self.use_aux_texture))
+            out_file.write('\n#define WFX_USE_HEIGHTMAP_COLLISIONS '+str(self.use_heightmap_collision))
+            out_file.write('\n#define WFX_HEIGHTMAP_PADDING '+str(self.heightmap_padding))
+            out_file.write('\n#define WFX_COLLISION_DEPTH '+str(self.collision_depth))
+
         self.update_speed=1.0/update_speed
         #the shader that will run the physic simulation
         self.physics_shader=Shader.load(Shader.SL_GLSL,'wfx_shaders/physics_v.glsl', 'wfx_shaders/physics_f.glsl')
@@ -65,7 +79,7 @@ class Wfx():
         if root:
             self.root=root.attachNewNode('wfx_root')
         self.root.hide()
-
+        self.root.hide(BitMask32.bit(heightmap_mask))
         #the size of the window is needed to generate uv for the particles
         #it may not be base.win if rendering to a smaller off-screen buff
         #for soft particles or something like it
@@ -77,6 +91,10 @@ class Wfx():
         self.ping_pong=None
         self.task=None
 
+        #collisions with heightmap
+        if heightmap_resolution>0:
+            self.collision_map=WorldHeightMap(heightmap_resolution, world_size, heightmap_mask)
+
     ###################
     #Private functions:
     ###################
@@ -86,7 +104,9 @@ class Wfx():
             out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
             out_file.write('#define WFX_NUM_EMITTERS '+str(self.num_emitters))
             out_file.write('\n#define WFX_AUX_RENDER_TARGET '+str(self.use_aux_texture))
-
+            out_file.write('\n#define WFX_USE_HEIGHTMAP_COLLISIONS '+str(self.use_heightmap_collision))
+            out_file.write('\n#define WFX_HEIGHTMAP_PADDING '+str(self.heightmap_padding))
+            out_file.write('\n#define WFX_COLLISION_DEPTH '+str(self.collision_depth))
         physics_v=self.physics_shader.getFilename(Shader.ST_vertex)
         physics_f=self.physics_shader.getFilename(Shader.ST_fragment)
         self.physics_shader=Shader.load(Shader.SL_GLSL, physics_v, physics_f)
@@ -233,6 +253,9 @@ class Wfx():
                         'props_tex':kwargs['props'],
                         'global_force':Vec4(0,0,-1.0,0),
                         'status':status}
+            if self.use_heightmap_collision:
+                shader_inputs['collision_map']=self.collision_map.get()
+                shader_inputs['world_size']=float(self.world_size)
             x=kwargs['one_pos'].getXSize()
             y=kwargs['one_pos'].getYSize()
             #emitters, for now it's all self.root (default to render)
@@ -550,7 +573,7 @@ class BufferRotator():
         tex.setWrapV(Texture.WM_clamp)
         tex.setMagfilter(SamplerState.FT_nearest)
         tex.setMinfilter(SamplerState.FT_nearest)
-        tex.setFormat(Texture.F_srgb_alpha)
+        tex.setFormat(Texture.F_rgba32)
         buff=base.win.makeTextureBuffer("buff", x, y, tex, to_ram=False, fbp=props)
         buff.setClearValue(GraphicsOutput.RTP_color, (0.0, 0.0, 0.0, 0.0)) #??
         buff.setSort(-100)
@@ -633,3 +656,53 @@ class BufferRotator():
             self.buffA.setActive(False)
             self.buffB.setActive(False)
             self.buffC.setActive(False)
+
+class WorldHeightMap():
+    """
+    This class renders a height/normal map of the world
+    The world space normal is in output.xyz the height in output.w
+    """
+    def __init__(self, resolution, world_size, heightmap_mask, bits=16):
+        self.resolution=resolution
+        #we render to a flaoting point texture, so we need the right props
+        props = FrameBufferProperties()
+        props.setRgbaBits(bits,bits, bits, bits)
+        props.setSrgbColor(False)
+        props.setFloatColor(True)
+
+        self.output=Texture()
+        self.output.setWrapU(Texture.WM_clamp)
+        self.output.setWrapV(Texture.WM_clamp)
+        self.output.setMagfilter(SamplerState.FT_nearest)
+        self.output.setMinfilter(SamplerState.FT_nearest)
+        if bits==16:
+            self.output.setFormat(Texture.F_rgba16)
+        elif bits==32:
+            self.output.setFormat(Texture.F_rgba32)
+        else:
+            self.output.setFormat(Texture.F_rgba)
+        self.buffer=base.win.makeTextureBuffer("buff", resolution, resolution, self.output, to_ram=False, fbp=props)
+        self.buffer.setClearValue(GraphicsOutput.RTP_color, (0.0, 0.0, 0.0, 0.0)) #??
+        self.buffer.setSort(-100)
+        #the camera for the buffer
+        self.cam=base.makeCamera(win=self.buffer)
+        self.cam.reparentTo(render)
+        self.cam.setPos(0,0, world_size)
+        self.cam.setP(-90)
+        lens = OrthographicLens()
+        lens.setFilmSize(world_size, world_size)
+        self.cam.node().setLens(lens)
+        self.cam.node().setCameraMask(BitMask32.bit(heightmap_mask))
+        #self.cam.node().showFrustum()
+
+        #apply a shader to the camera
+        state_np = NodePath("state_node")
+        state_np.setShader(Shader.load(Shader.SLGLSL, "wfx_shaders/heightmap_v.glsl","wfx_shaders/heightmap_f.glsl"),1)
+        self.cam.node().setInitialState(state_np.getState())
+
+    def get(self):
+        self.buffer.setActive(True)
+        return self.output
+
+    def stop(self):
+        self.buffer.setActive(False)

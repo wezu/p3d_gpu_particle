@@ -2,7 +2,7 @@
 #version 140
 #pragma include "inc_config.glsl"
 
-#ifndef WFX_AUX_RENDER_TARGET
+#if WFX_AUX_RENDER_TARGET==1
 uniform sampler2D tex_aux;
 #endif
 
@@ -29,7 +29,7 @@ void main()
 
     gl_FragData[0]=texture(tex, uv);
 
-    #ifndef WFX_AUX_RENDER_TARGET
+    #if WFX_AUX_RENDER_TARGET==1
     gl_FragData[1]=texture(tex_aux, uv);
     #endif
     }
