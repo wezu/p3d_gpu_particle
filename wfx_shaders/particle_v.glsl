@@ -1,6 +1,10 @@
 //GLSL
 #version 140
-#pragma include "inc_config.glsl"
+//#pragma include "inc_config.glsl"
+//The line below is more or less the same as the one above,
+//just using a custom parser to avoid re-writing the include file to hd
+//Don't remove it!!!!
+#define import 1
 
 uniform mat4 p3d_ModelViewProjectionMatrix;
 uniform mat4 p3d_ModelViewMatrixInverse;

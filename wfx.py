@@ -7,7 +7,7 @@ import json
 __author__ = "wezu"
 __copyright__ = "Copyright 2016"
 __license__ = "ISC"
-__version__ = "0.2"
+__version__ = "0.21"
 __email__ = "wezu.dev@gmail.com"
 __status__ = "Work In Progress"
 
@@ -16,28 +16,30 @@ class Wfx():
                 num_emitters=1,
                 update_speed=60.0,
                 use_aux_texture=False,
-                physics_shader=None,
-                particle_shader=None,
                 camera=None,
                 root=None,
                 window=None,
                 heightmap_resolution=0,
                 world_size=100,
+                heightmap_mask=17,
                 heightmap_padding=0.5,
                 collision_depth=1.0,
-                heightmap_mask=17):
+                velocity_constant=0.05):
         """
         Setup
 
         Args:
-            update_speed (float)    - how fast will the simulation run in FPS
-            use_aux_texture(bool)   - do the particles need to render to a second render target
-            physics_shader(Shader)  - shader that will run the physic simulation
-            particle_shader(Shader) - shader that will draw vertex as textures billbords
-            camera(NodePath/Camera) - the default scene camera
-            root(NodePath)          - root node for the simulation
-            window(GraphicsOutput)  - the window to display the particles in (needed only for it's size)
-            heightmap_mask(int)     - camera bitmask value (0-32) for rendering collision heightmap (wip)
+            update_speed (float)     - how fast will the simulation run in FPS
+            use_aux_texture(bool)    - do the particles need to render to a second render target
+            camera(NodePath/Camera)  - the default scene camera
+            root(NodePath)           - root node for the simulation
+            window(GraphicsOutput)   - the window to display the particles in (needed only for it's size)
+            heightmap_resolution(int)- if set to 0 disables rendering a heightmap(default) else the size of the heightmap
+            world_size(float)        - the size of the heightmap in world space units
+            heightmap_mask(int)      - camera bitmask value (0-32) for rendering collision heightmap
+            heightmap_padding        - an offset for rendering the heightmap (should be equal to hals of the size of particles)
+            collision_depth          - how far are particles tested for collisions
+            velocity_constant        - all forces are multiplied by this value (sort of... )
         """
         #setup
         self.num_emitters=num_emitters
@@ -46,27 +48,19 @@ class Wfx():
         self.use_heightmap_collision=0
         self.heightmap_padding=heightmap_padding
         self.collision_depth=collision_depth
+        self.velocity_constant=velocity_constant
         if heightmap_resolution>0:
             self.use_heightmap_collision=1
-        #write the include for shaders
-        with open('wfx_shaders/inc_config.glsl', 'w') as out_file:
-            out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
-            out_file.write('#define WFX_NUM_EMITTERS '+str(num_emitters))
-            out_file.write('\n#define WFX_AUX_RENDER_TARGET '+str(self.use_aux_texture))
-            out_file.write('\n#define WFX_USE_HEIGHTMAP_COLLISIONS '+str(self.use_heightmap_collision))
-            out_file.write('\n#define WFX_HEIGHTMAP_PADDING '+str(self.heightmap_padding))
-            out_file.write('\n#define WFX_COLLISION_DEPTH '+str(self.collision_depth))
-
         self.update_speed=1.0/update_speed
-        #the shader that will run the physic simulation
-        self.physics_shader=Shader.load(Shader.SL_GLSL,'wfx_shaders/physics_v.glsl', 'wfx_shaders/physics_f.glsl')
-        if physics_shader:
-            self.physics_shader=physics_shader
 
+        #the shaders are hardcoded now, if you want your own shaders edit the shaders provided
+        #or change the path below...
+        #the shader that will run the physic simulation
+        self.physics_shader_txt=self._read_shader_text('wfx_shaders/physics_v.glsl', 'wfx_shaders/physics_f.glsl')
         #the shader that will draw vertex as textures billbords
-        self.particle_shader=Shader.load(Shader.SL_GLSL,'wfx_shaders/particle_v.glsl', 'wfx_shaders/particle_f.glsl')
-        if particle_shader:
-            self.particle_shader=particle_shader
+        self.particle_shader_txt=self._read_shader_text('wfx_shaders/particle_v.glsl', 'wfx_shaders/particle_f.glsl')
+        #the shader that will draw a heighmapt/normal
+        self.heightmap_shader_txt=self._read_shader_text('wfx_shaders/heightmap_v.glsl', 'wfx_shaders/heightmap_f.glsl')
 
         #a camera position needed to scale the particles that are away
         self.camera=base.camera
@@ -98,30 +92,68 @@ class Wfx():
     ###################
     #Private functions:
     ###################
-    def _reload_shaders(self):
-        #print '_reload_shaders',self.num_emitters
-        with open('wfx_shaders/inc_config.glsl', 'w') as out_file:
-            out_file.write('//WFX config, do not edit, it will be overriden anyway\n')
-            out_file.write('#define WFX_NUM_EMITTERS '+str(self.num_emitters))
-            out_file.write('\n#define WFX_AUX_RENDER_TARGET '+str(self.use_aux_texture))
-            out_file.write('\n#define WFX_USE_HEIGHTMAP_COLLISIONS '+str(self.use_heightmap_collision))
-            out_file.write('\n#define WFX_HEIGHTMAP_PADDING '+str(self.heightmap_padding))
-            out_file.write('\n#define WFX_COLLISION_DEPTH '+str(self.collision_depth))
-        physics_v=self.physics_shader.getFilename(Shader.ST_vertex)
-        physics_f=self.physics_shader.getFilename(Shader.ST_fragment)
-        self.physics_shader=Shader.load(Shader.SL_GLSL, physics_v, physics_f)
 
-        particle_v=self.particle_shader.getFilename(Shader.ST_vertex)
-        particle_f=self.particle_shader.getFilename(Shader.ST_fragment)
-        self.particle_shader=Shader.load(Shader.SL_GLSL, particle_v, particle_f)
+    def _read_shader_text(self, v_shader, f_shader):
+        with open(v_shader) as f:
+            v = f.read()
+        with open(f_shader) as f:
+            f = f.read()
+        return (v,f)
+
+    def _reload_shaders(self):
+        #reloading shaders without writing a include file to hd
+        #...needlessly complicated
+
+        #put the values in a dict
+        setup={'num_emitters':int(self.num_emitters),
+                'aux_tex':int(self.use_aux_texture),
+                'use_heightmap':int(self.use_heightmap_collision),
+                'height_pad':float(self.heightmap_padding),
+                'coll_depth':float(self.collision_depth),
+                'velocity_const':float(self.velocity_constant)}
+        #make a string and format it with the values above
+        header=('#define WFX_NUM_EMITTERS {num_emitters}\n'
+                '#define WFX_AUX_RENDER_TARGET {aux_tex}\n'
+                '#define WFX_USE_HEIGHTMAP_COLLISIONS {use_heightmap}\n'
+                '#define WFX_HEIGHTMAP_PADDING {height_pad}\n'
+                '#define WFX_COLLISION_DEPTH {coll_depth}\n'
+                '#define WFX_VELOCITY_CONST {velocity_const}\n')
+        header=header.format(**setup)
+
+        #replace all the '#define import 1' in the shaders with the above
+        physics_v=self.physics_shader_txt[0]
+        physics_f=self.physics_shader_txt[1]
+        particle_v=self.particle_shader_txt[0]
+        particle_f=self.particle_shader_txt[1]
+        heightmap_v=self.heightmap_shader_txt[0]
+        heightmap_f=self.heightmap_shader_txt[1]
+        physics_v=physics_v.replace('#define import 1', header)
+        physics_f=physics_f.replace('#define import 1', header)
+        particle_v=particle_v.replace('#define import 1', header)
+        particle_f=particle_f.replace('#define import 1', header)
+        heightmap_v=heightmap_v.replace('#define import 1', header)
+        heightmap_f=heightmap_f.replace('#define import 1', header)
+
+        #make the shaders
+        self.physics_shader = Shader.make(Shader.SL_GLSL,physics_v, physics_f)
+        self.particle_shader = Shader.make(Shader.SL_GLSL,particle_v, particle_f)
+        self.heightmap_shader = Shader.make(Shader.SL_GLSL,heightmap_v, heightmap_f)
+
+        #apply the shaders if there's something to apply them to
         try:
-            self.ping_pong.setShader(self.physics_shader)
+            state_np = NodePath("state_node")
+            state_np.setShader(self.heightmap_shader ,1)
+            self.collision_map.cam.node().setInitialState(state_np.getState())
         except AttributeError:
             pass
         try:
             shader_attrib = ShaderAttrib.make(self.particle_shader)
             shader_attrib = shader_attrib.setFlag(ShaderAttrib.F_shader_point_size, True)
             self.root.setAttrib(shader_attrib)
+        except AttributeError:
+            pass
+        try:
+            self.ping_pong.setShader(self.physics_shader)
         except AttributeError:
             pass
 
@@ -206,10 +238,15 @@ class Wfx():
                     pfm.read(mf.openReadSubfile(index))
                     new_kwargs[name[:-4]]=Texture()
                     new_kwargs[name[:-4]].load(pfm)
-                    new_kwargs[name[:-4]].setWrapU(Texture.WM_clamp)
-                    new_kwargs[name[:-4]].setWrapV(Texture.WM_clamp)
+                    new_kwargs[name[:-4]].setWrapU(SamplerState.WM_clamp)
+                    new_kwargs[name[:-4]].setWrapV(SamplerState.WM_clamp)
                     new_kwargs[name[:-4]].setMagfilter(SamplerState.FT_nearest)
                     new_kwargs[name[:-4]].setMinfilter(SamplerState.FT_nearest)
+                    f=new_kwargs[name[:-4]].getFormat()
+                    if f== Texture.F_rgb:
+                        new_kwargs[name[:-4]].setFormat(Texture.F_rgb32)
+                    elif f== Texture.F_rgba:
+                        new_kwargs[name[:-4]].setFormat(Texture.F_rgba32)
                 if name[-3:]=='png':
                     p = PNMImage()
                     p.read(mf.openReadSubfile(index))
@@ -569,8 +606,8 @@ class BufferRotator():
         props.setRgbaBits(bits,bits, bits, bits)
         props.setSrgbColor(False)
         props.setFloatColor(True)
-        tex.setWrapU(Texture.WM_clamp)
-        tex.setWrapV(Texture.WM_clamp)
+        tex.setWrapU(SamplerState.WM_clamp)
+        tex.setWrapV(SamplerState.WM_clamp)
         tex.setMagfilter(SamplerState.FT_nearest)
         tex.setMinfilter(SamplerState.FT_nearest)
         tex.setFormat(Texture.F_rgba32)
@@ -671,8 +708,8 @@ class WorldHeightMap():
         props.setFloatColor(True)
 
         self.output=Texture()
-        self.output.setWrapU(Texture.WM_clamp)
-        self.output.setWrapV(Texture.WM_clamp)
+        self.output.setWrapU(SamplerState.WM_clamp)
+        self.output.setWrapV(SamplerState.WM_clamp)
         self.output.setMagfilter(SamplerState.FT_nearest)
         self.output.setMinfilter(SamplerState.FT_nearest)
         if bits==16:

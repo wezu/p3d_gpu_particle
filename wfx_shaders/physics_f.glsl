@@ -1,6 +1,5 @@
-//GLSL
 #version 140
-#pragma include "inc_config.glsl"
+#define import 1
 
 
 #if WFX_USE_HEIGHTMAP_COLLISIONS==1
@@ -63,7 +62,7 @@ void main()
                 vec3 velocity=pos_last.xyz-pos_prelast.xyz;
                 vec3 force = global_force.xyz + status[emitter_id].xyz; //status.xyz is the per-emitter local force
                 float mass= (sin((life/max_life)+mass_curve.x)*3.141592653589793*mass_curve.y)*mass_curve.z + mass_curve.w;
-                velocity += (force*mass)*0.05;
+                velocity += (force*mass)*WFX_VELOCITY_CONST;
                 vec3 new_pos=pos_last.xyz+velocity;
 
                 #if WFX_USE_HEIGHTMAP_COLLISIONS==1

@@ -1,6 +1,5 @@
-//GLSL
 #version 140
-#pragma include "inc_config.glsl"
+#define import 1
 
 uniform mat4 p3d_ModelViewProjectionMatrix;
 in vec2 p3d_MultiTexCoord0;
