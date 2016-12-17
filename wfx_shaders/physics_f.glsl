@@ -7,6 +7,11 @@ uniform sampler2D collision_map;
 uniform float world_size;
 #endif
 
+#if WFX_USE_3D_COLLISIONS==1
+uniform sampler3D voxel_map;
+uniform vec3 voxel_size;
+#endif
+
 uniform sampler2D pos_tex_prelast;
 uniform sampler2D pos_tex_last;
 uniform sampler2D zero_pos;
@@ -69,11 +74,28 @@ void main()
                 vec4 hm=texture(collision_map, (pos_last.xy+vec2(world_size/2.0, world_size/2.0))/world_size);
                 if ((new_pos.z<hm.w)&&(pos_last.z>hm.w-WFX_COLLISION_DEPTH))//&&(hm.xyz!=vec3(0.0,0.0,0.0)))
                     {
-                    new_pos-=velocity;
-                    new_pos.z=hm.w;
-                    velocity=reflect(hm.xyz, normalize(velocity))*length(velocity)*0.12;
-                    new_pos.xyz+=velocity;
+                    velocity=pos_last.xyz-pos_prelast.xyz;
+                    velocity=reflect(normalize(-hm.xyz), normalize(velocity))*length(velocity)*0.08;
+                    velocity.xy*=-1.0;
+                    new_pos.xyz=pos_last.xyz+velocity;
                     }
+                #endif
+
+                #if WFX_USE_3D_COLLISIONS==1
+                vec3 uvw=((new_pos.xyz+WFX_COLLISION_DEPTH*0.5)+voxel_size.xyz*0.5)/voxel_size.xyz;
+                uvw.y*=-1.0;
+                vec4 voxel=texture(voxel_map, uvw);
+                if (voxel.w > 0.0)
+                    {
+                    velocity=pos_last.xyz-pos_prelast.xyz;
+                    velocity=reflect(normalize(-voxel.xyz), normalize(velocity))*length(velocity)*0.08;
+                    velocity.xy*=-1.0;
+                    new_pos.xyz=pos_last.xyz+velocity;
+                    }
+                //else
+                //    {
+                //    new_pos+=voxel.xyz*0.12;
+                //    }
                 #endif
 
 

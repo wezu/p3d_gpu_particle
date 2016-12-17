@@ -19,6 +19,8 @@ class Wfx():
                 camera=None,
                 root=None,
                 window=None,
+                vector_field=None,
+                voxel_size=Vec3(200, 200, 200),
                 heightmap_resolution=0,
                 world_size=100,
                 heightmap_mask=17,
@@ -52,6 +54,12 @@ class Wfx():
         if heightmap_resolution>0:
             self.use_heightmap_collision=1
         self.update_speed=1.0/update_speed
+        self.use_vector_field=0
+        if vector_field:
+            self.vector_field=loader.loadTexture(vector_field)
+            self.vector_field.setFormat(Texture.F_rgba32)
+            self.use_vector_field=1
+        self.voxel_size=voxel_size
 
         #the shaders are hardcoded now, if you want your own shaders edit the shaders provided
         #or change the path below...
@@ -110,14 +118,16 @@ class Wfx():
                 'use_heightmap':int(self.use_heightmap_collision),
                 'height_pad':float(self.heightmap_padding),
                 'coll_depth':float(self.collision_depth),
-                'velocity_const':float(self.velocity_constant)}
+                'velocity_const':float(self.velocity_constant),
+                'vector_field':int(self.use_vector_field)}
         #make a string and format it with the values above
         header=('#define WFX_NUM_EMITTERS {num_emitters}\n'
                 '#define WFX_AUX_RENDER_TARGET {aux_tex}\n'
                 '#define WFX_USE_HEIGHTMAP_COLLISIONS {use_heightmap}\n'
                 '#define WFX_HEIGHTMAP_PADDING {height_pad}\n'
                 '#define WFX_COLLISION_DEPTH {coll_depth}\n'
-                '#define WFX_VELOCITY_CONST {velocity_const}\n')
+                '#define WFX_VELOCITY_CONST {velocity_const}\n'
+                '#define WFX_USE_3D_COLLISIONS {vector_field}\n')
         header=header.format(**setup)
 
         #replace all the '#define import 1' in the shaders with the above
@@ -293,6 +303,9 @@ class Wfx():
             if self.use_heightmap_collision:
                 shader_inputs['collision_map']=self.collision_map.get()
                 shader_inputs['world_size']=float(self.world_size)
+            if self.use_vector_field:
+                shader_inputs['voxel_map']=self.vector_field
+                shader_inputs['voxel_size']=self.voxel_size
             x=kwargs['one_pos'].getXSize()
             y=kwargs['one_pos'].getYSize()
             #emitters, for now it's all self.root (default to render)

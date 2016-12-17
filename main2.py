@@ -29,22 +29,23 @@ class Demo(DirectObject):
 
         #movable emitter
         #give it something to move around
-        #axis=render.attachNewNode('axis')
-        #self.emitter=loader.loadModel('smiley')
-        #self.emitter.reparentTo(axis)
-        #self.emitter.setPos(100, 0, 0)
-        #interval=axis.hprInterval(15, (360, 0, 0), startHpr=(0, 0, 0))
-        #interval.loop()
+        axis=render.attachNewNode('axis')
+        self.emitter=loader.loadModel('smiley')
+        self.emitter.reparentTo(axis)
+        self.emitter.setPos(100, 0, 0)
+        interval=axis.hprInterval(15, (360, 0, 0), startHpr=(0, 0, 0))
+        interval.loop()
         #emitter.hide()
         #scene.reparentTo(axis)
 
         #load particles and link them to a moving emitter
-        self.particle=Wfx(update_speed=60.0, heightmap_resolution=1024, world_size=200.0)
+        self.particle=Wfx(vector_field='vol_shp.txo', velocity_constant=0.005)
+        #self.particle=Wfx(update_speed=60.0, heightmap_resolution=1024, world_size=200.0, velocity_constant=0.005)
         self.particle.load("snow2.wfx")
         #self.particle.set_emitter_node(emitter_id=0, node=self.emitter)
         self.particle.start()
 
-        self.particle.set_emitter_force(0, Vec3(-0.1, 0, 0))
+        #self.particle.set_emitter_force(0, Vec3(0.1, 0, 0))
 
         #space stops the fx animation
 
@@ -52,7 +53,7 @@ class Demo(DirectObject):
 
         self.accept("space",self.particle.set_pause)
 
-        #taskMgr.add(self.do_wind, 'do_wind')
+        taskMgr.add(self.do_wind, 'do_wind')
 
     def flip_active(self):
         if self.active == 1:
@@ -62,10 +63,10 @@ class Demo(DirectObject):
         self.particle.set_emitter_active(0, self.active)
 
     def do_wind(self, task):
-        v=self.emitter.getPos(render)*0.0001
+        v=self.emitter.getPos(render)*0.004
         v[2]=-1
         #print v
-        self.particle.set_global_force(v)
+        self.particle.set_emitter_force(0, v)
         return task.again
 
 d=Demo()
