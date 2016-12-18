@@ -5,6 +5,7 @@ from panda3d.bullet import *
 from direct.showbase.ShowBase import ShowBase
 from timeit import default_timer as timer
 from random import random
+import os
 
 def mul3(p1, p2):
     return Point3(p1[0]*p2[0], p1[1]*p2[1], p1[2]*p2[2])
@@ -75,9 +76,23 @@ class Voxelize():
         for z, pfm in enumerate(self.pfm):
             tex.load(pfm, z, 0)
         tex.write(filename, z=0, n=0, write_pages=True, write_mipmaps=False)
-        tex.setFormat(Texture.F_rgba32)
+        #tex.setFormat(Texture.F_rgba32)
         end = timer()
         print 'Texture setup/write:', end - start
+
+    def pack_mf(self, what, where, del_what=False):
+        start = timer()
+        mf = Multifile()
+        mf.openWrite(where)
+
+        fn=Filename(what)
+        fn.setBinary()
+        mf.addSubfile(what, fn, 9)
+        mf.flush()
+        if del_what:
+            os.remove(what)
+        end = timer()
+        print 'Multifile packed in:', end - start
 
     def run_ray_test(self):
         start = timer()
@@ -141,8 +156,9 @@ class Voxelize():
 
 
 base = ShowBase()
-v = Voxelize('editor/scene/vol_shp', resolution=(128,128,128))
+v = Voxelize('editor/scene/vol_shp', resolution=(128,128,128), world_size=(128, 128, 128))
 v.run_ray_test()
 v.pack_txo('vol_shp.txo')
+v.pack_mf('vol_shp.txo', 'vol_shp.txo.mf',del_what=True)
 
 #base.run()

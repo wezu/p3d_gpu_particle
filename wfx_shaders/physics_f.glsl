@@ -75,27 +75,32 @@ void main()
                 if ((new_pos.z<hm.w)&&(pos_last.z>hm.w-WFX_COLLISION_DEPTH))//&&(hm.xyz!=vec3(0.0,0.0,0.0)))
                     {
                     velocity=pos_last.xyz-pos_prelast.xyz;
-                    velocity=reflect(normalize(-hm.xyz), normalize(velocity))*length(velocity)*0.08;
+                    velocity=reflect(normalize(-hm.xyz), normalize(velocity))*length(velocity)*props.w;
                     velocity.xy*=-1.0;
                     new_pos.xyz=pos_last.xyz+velocity;
                     }
                 #endif
 
                 #if WFX_USE_3D_COLLISIONS==1
-                vec3 uvw=((new_pos.xyz+WFX_COLLISION_DEPTH*0.5)+voxel_size.xyz*0.5)/voxel_size.xyz;
-                uvw.y*=-1.0;
-                vec4 voxel=texture(voxel_map, uvw);
-                if (voxel.w > 0.0)
+                vec3 uvw=((new_pos.xyz+WFX_COLLISION_DEPTH)+voxel_size.xyz*0.5)/voxel_size.xyz;
+                if (all(greaterThanEqual(uvw, vec3(0.0, 0.0, 0.0))) && all(lessThanEqual(uvw, vec3(1.0, 1.0, 1.0))))
                     {
-                    velocity=pos_last.xyz-pos_prelast.xyz;
-                    velocity=reflect(normalize(-voxel.xyz), normalize(velocity))*length(velocity)*0.08;
-                    velocity.xy*=-1.0;
-                    new_pos.xyz=pos_last.xyz+velocity;
+                    uvw.y*=-1.0;
+                    vec4 voxel=texture(voxel_map, uvw);
+                    if (voxel.w > 0.0)
+                        {
+                        velocity=pos_last.xyz-pos_prelast.xyz;
+                        velocity=reflect(normalize(-voxel.xyz), normalize(velocity))*length(velocity)*props.w;
+                        velocity.xy*=-1.0;
+                        velocity += (force*mass)*WFX_VELOCITY_CONST*(vec3(1.0, 1.0, 1.0)-normalize(voxel.xyz));
+                        //velocity.xyz+=voxel.xyz*WFX_COLLISION_DEPTH*WFX_VELOCITY_CONST;
+                        new_pos.xyz=pos_last.xyz+velocity;
+                        }
+                    //else
+                    //    {
+                    //    new_pos+=voxel.xyz*0.12;
+                    //    }
                     }
-                //else
-                //    {
-                //    new_pos+=voxel.xyz*0.12;
-                //    }
                 #endif
 
 

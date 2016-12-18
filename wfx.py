@@ -56,8 +56,16 @@ class Wfx():
         self.update_speed=1.0/update_speed
         self.use_vector_field=0
         if vector_field:
-            self.vector_field=loader.loadTexture(vector_field)
-            self.vector_field.setFormat(Texture.F_rgba32)
+            if type(vector_field) == type(Texture()):
+                self.vector_field=vector_field
+            else:
+                mf=Multifile()
+                if mf.openReadWrite(vector_field):
+                    self.vector_field=Texture()
+                    self.vector_field.readTxo(mf.openReadSubfile(0))
+                else:
+                    self.vector_field=loader.loadTexture(vector_field)
+            #self.vector_field.setFormat(Texture.F_rgba32)
             self.use_vector_field=1
         self.voxel_size=voxel_size
 

@@ -39,9 +39,9 @@ class Demo(DirectObject):
         #scene.reparentTo(axis)
 
         #load particles and link them to a moving emitter
-        self.particle=Wfx(vector_field='vol_shp.txo', velocity_constant=0.005)
-        #self.particle=Wfx(update_speed=60.0, heightmap_resolution=1024, world_size=200.0, velocity_constant=0.005)
-        self.particle.load("snow2.wfx")
+        self.particle=Wfx(vector_field='vol_shp.txo.mf', velocity_constant=0.05, collision_depth=0.5, voxel_size=Vec3(128, 128, 128))
+        #self.particle=Wfx(update_speed=60.0, heightmap_resolution=1024, world_size=200.0, velocity_constant=0.05)
+        self.particle.load("snow3.wfx")
         #self.particle.set_emitter_node(emitter_id=0, node=self.emitter)
         self.particle.start()
 
@@ -63,7 +63,7 @@ class Demo(DirectObject):
         self.particle.set_emitter_active(0, self.active)
 
     def do_wind(self, task):
-        v=self.emitter.getPos(render)*0.004
+        v=self.emitter.getPos(render)*0.01
         v[2]=-1
         #print v
         self.particle.set_emitter_force(0, v)

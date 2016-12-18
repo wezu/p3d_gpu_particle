@@ -200,8 +200,7 @@ class Editor(DirectObject):
 
         loop_locals={'number':number}
 
-        #TODO:
-        bounce=0.0
+        bounce=self.exe(self.panel_entry_bounce.get(), expect_float=True)
 
         for n in range(1, number+1):
             #get the values and check if they are valid
@@ -228,8 +227,8 @@ class Editor(DirectObject):
                 return
             loop_locals['max_life']=max_life
             #write the values
-            self.pos_0_pfm.add(0.0, 0.0, 0.0, start_life, offset=use_offset)
-            self.pos_1_pfm.add(0.0, 0.0, 0.0, start_life+1.0, offset=use_offset)
+            self.pos_0_pfm.add(zero_pos, start_life, offset=use_offset)
+            self.pos_1_pfm.add(one_pos, start_life+1.0, offset=use_offset)
             self.zero_pos_pfm.add(zero_pos, offset=use_offset)
             self.one_pos_pfm.add(one_pos,offset=use_offset)
             self.mass_pfm.add(mass, offset=use_offset)
