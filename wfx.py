@@ -7,15 +7,26 @@ import json
 __author__ = "wezu"
 __copyright__ = "Copyright 2016"
 __license__ = "ISC"
-__version__ = "0.21"
+__version__ = "0.22"
 __email__ = "wezu.dev@gmail.com"
-__status__ = "Work In Progress"
+__status__ = "just about ready"
+__all__ = ['Wfx']
 
-class Wfx():
+class Wfx(object):
+    """
+    GPU particle rendering system for Panda3D
+    ----------
+    Attributes:
+    emitters[id].node   -Link a NodePath with a id.
+                         When the Node moves or rotates, then the origin
+                         of particles with that id moves or rotates with it
+    emitters[id].force  -Set a loca Force (Vec3 tuple/list) on all particles with that id
+    emitters[id].active -Enable (1) or disable (0) all particles with that id
+    global_force        -A force (Vec3 or list/tuple) applied to all particles
+    pause               -if set to True, the position of the particles will not be updated
+    """
     def __init__(self,
-                num_emitters=1,
                 update_speed=60.0,
-                use_aux_texture=False,
                 camera=None,
                 root=None,
                 window=None,
@@ -28,24 +39,23 @@ class Wfx():
                 collision_depth=1.0,
                 velocity_constant=0.05):
         """
-        Setup
-
-        Args:
+        Args (all argumetns are optional):
             update_speed (float)     - how fast will the simulation run in FPS
-            use_aux_texture(bool)    - do the particles need to render to a second render target
-            camera(NodePath/Camera)  - the default scene camera
-            root(NodePath)           - root node for the simulation
+            camera(NodePath/Camera)  - the default scene camera (default base.camera)
+            root(NodePath)           - root node for the simulation (default rander/root)
             window(GraphicsOutput)   - the window to display the particles in (needed only for it's size)
-            heightmap_resolution(int)- if set to 0 disables rendering a heightmap(default) else the size of the heightmap
+            vector_field(texture)    - a 3D texture for collisions and/or forces,
+                                       None to disable, can be a Texture object a txo file or a txo in a multifile
+            voxel_size (VBase3)      - size of the vector field in world units
+            heightmap_resolution(int)- 0 disables rendering a heightmap, else the size of the heightmap
             world_size(float)        - the size of the heightmap in world space units
             heightmap_mask(int)      - camera bitmask value (0-32) for rendering collision heightmap
-            heightmap_padding        - an offset for rendering the heightmap (should be equal to hals of the size of particles)
+            heightmap_padding        - an offset for rendering the heightmap
             collision_depth          - how far are particles tested for collisions
             velocity_constant        - all forces are multiplied by this value (sort of... )
         """
         #setup
-        self.num_emitters=num_emitters
-        self.use_aux_texture=int(use_aux_texture)
+        #self.use_aux_texture=int(use_aux_texture)
         self.world_size=world_size
         self.use_heightmap_collision=0
         self.heightmap_padding=heightmap_padding
@@ -105,9 +115,26 @@ class Wfx():
         if heightmap_resolution>0:
             self.collision_map=WorldHeightMap(heightmap_resolution, world_size, heightmap_mask)
 
+        self.__global_force=Vec3(0,0,0)
+
+
     ###################
     #Private functions:
     ###################
+    @property
+    def global_force(self):
+        """
+        A force (Vec3 or list/tuple) applied to all particles
+        """
+        return self.__global_force
+
+    @global_force.setter
+    def global_force(self, force):
+        self.__global_force=force
+        try:
+            self.ping_pong.setShaderInput('global_force', Vec4(force[0], force[1], force[2], 0.0))
+        except AttributeError:
+            pass
 
     def _read_shader_text(self, v_shader, f_shader):
         with open(v_shader) as f:
@@ -227,17 +254,21 @@ class Wfx():
         """
         Loads values needed to run the simulation.
 
+        You can pass in the location of a multifile with all the textures/data,
+        or all the textures/data as keyword agruments
         Args:
-            multifile
-            pos_0
-            pos_1
-            mass
-            size
-            one_pos
-            zero_pos
-            data
-            texture
-            offset
+            multifile(string)   - loction(path) of the multifile with the data
+                                  (the default editor saves the mutifiles with a .wfx extension)
+            pos_0 (Texture)     -pos/life of the particles at time=0
+            pos_1 (Texture)     -pos/life of the particles at time=1
+            mass (Texture)      -mass sinusiod co-factors
+            size (Texture)      -size sinusiod co-factors
+            one_pos(Texture)    -position to reset to
+            zero_pos(Texture)   -position to reset to
+            data (dict)         -{'num_emitters':...,'status':...,'blend_index':...,'forces':...}
+            texture (Texture)   -visible texture
+            offset (Texture)    -rgba(+U,+V, frame_size, number_of_frames)
+            props(Texture)      -rgba(start_life, max_life, emitter_id, bounce)
         """
         needed_kwargs={'pos_0','pos_1','mass','size','one_pos','zero_pos','data', 'texture', 'offset', 'props'}
 
@@ -316,10 +347,13 @@ class Wfx():
                 shader_inputs['voxel_size']=self.voxel_size
             x=kwargs['one_pos'].getXSize()
             y=kwargs['one_pos'].getYSize()
+            #for property access
+            self.emitters=[]
             #emitters, for now it's all self.root (default to render)
             emitters=[]
             for i in range(self.num_emitters):
                 emitters.append(self.root)
+                self.emitters.append(WfxEmitter(self, i))
             if self.ping_pong is None:
                 self.ping_pong=BufferRotator(self.physics_shader, kwargs['pos_0'], kwargs['pos_1'], shader_inputs, emitters, update_speed=self.update_speed)
                 #add blending
@@ -334,6 +368,9 @@ class Wfx():
             else:
                 self.ping_pong.setShaderInputsDict(shader_inputs)
                 self.ping_pong.reset_textures(kwargs['pos_0'], kwargs['pos_1'])
+
+            if self.use_heightmap_collision:
+                self.ping_pong.other_buffers.append(self.collision_map.buffer)
 
             #shader and inputs
             shader_attrib = ShaderAttrib.make(self.particle_shader)
@@ -357,10 +394,8 @@ class Wfx():
             self.root.setShaderInput('pos_tex', self.ping_pong.output)
             self._reset_window_size()
         else:
-            print 'error'
-            for arg in args:
-                print 'arg:', arg
-            print kwargs
+            raise TypeError('load() takes 1 (multifile) or at least 10 (individual data) arguments, got: Args: '+str(args)+', Kwargs:'+str(kwargs))
+
 
     def start(self):
         """
@@ -373,7 +408,7 @@ class Wfx():
     def set_pause(self):
         """
         Pauses the particle system without hiding anything, use this for 'time stop'
-        ..or just set self.pause to True
+        Hint: use the .pause propertie eg. fx.pause=True
         """
         self.pause = not self.pause
 
@@ -398,6 +433,9 @@ class Wfx():
         Removes everything, call this when you now longer need the particle system
         """
         self.reset()
+        if self.use_heightmap_collision:
+            self.collision_map.remove()
+            self.collision_map=None
         self.physics_shader=None
         self.particle_shader=None
         self.root=None
@@ -406,6 +444,7 @@ class Wfx():
     def set_global_force(self, force):
         """
         Sets a force affecting all particles, force should be vector in world space (list/tuple will also work)
+        Hint: use the global_force propertie, eg. fx.global_force=Vec3(0,0,-1)
         """
         try:
             self.ping_pong.setShaderInput('global_force', Vec4(force[0], force[1], force[2], 0.0))
@@ -415,6 +454,7 @@ class Wfx():
     def set_emitter_force(self, emitter_id, force):
         """
         Sets a local force affecting all particles with a given emitter_id
+        Hint: use the emitters[emitter_id].force propertie, eg. fx.emitters[0].force=Vec3(1,1,0)
         """
         try:
             status=PTA_LVecBase4f()
@@ -440,6 +480,7 @@ class Wfx():
     def set_emitter_active(self, emitter_id, active):
         """
         Turns on (active=1) or off (active=0) all the particles with a given emitter_id
+        Hint: use the emitters[emitter_id].active propertie, eg. fx.emitters[0].active=True
         """
         try:
             status=PTA_LVecBase4f()
@@ -463,12 +504,14 @@ class Wfx():
     def set_emitter_on(self, emitter_id):
         """
         Turns on all the particles with a given emitter_id
+        Hint: use the emitters[emitter_id].active propertie, eg. fx.emitters[0].active=True
         """
         self.set_emitter_active(emitter_id, 1.0)
 
     def set_emitter_off(self, emitter_id):
         """
         Turns off all the particles with a given emitter_id
+        Hint: use the emitters[emitter_id].active propertie, eg. fx.emitters[0].active=True
         """
         self.set_emitter_active(emitter_id, 0.0)
 
@@ -478,6 +521,7 @@ class Wfx():
 
         When the node moves or rotates, then the origin of particles
         with that emitter_id moves or rotates with it.
+        Hint: use the emitters[emitter_id].node propertie, eg. fx.emitters[0].node=some_node_path
         """
         self.ping_pong.emitters[emitter_id]=node
 
@@ -488,8 +532,82 @@ class Wfx():
         self._reset_window_size()
 
 
+class WfxEmitter(object):
+    """
+    Helper class for a more 'pythonic' API
+    """
+    def __init__(self, parent_wfx, emitter_id, node=None, force=Vec3(0,0,0), active=0):
+        self.__node=node
+        self.__force=force
+        self.__active=active
+        self.parent_wfx=parent_wfx
+        self.emitter_id=emitter_id
 
-class BufferRotator():
+    @property
+    def node(self):
+        return self.__node
+
+    @node.setter
+    def node(self, node):
+        self.__node=node
+        self.parent_wfx.ping_pong.emitters[self.emitter_id]=node
+
+    @property
+    def force(self):
+        return self.force
+
+    @force.setter
+    def force(self, force):
+        self.__force=force
+        try:
+            status=PTA_LVecBase4f()
+            for i in range(self.parent_wfx.num_emitters):
+                v=Vec4(0,0,0,0)
+                if i == self.emitter_id:
+                    v[0]=force[0]
+                    v[1]=force[1]
+                    v[2]=force[2]
+                    self.parent_wfx.current_forces[i][0]=force[0]
+                    self.parent_wfx.current_forces[i][1]=force[1]
+                    self.parent_wfx.current_forces[i][2]=force[2]
+                else:
+                    v[0]=self.parent_wfx.current_forces[i][0]
+                    v[1]=self.parent_wfx.current_forces[i][1]
+                    v[2]=self.parent_wfx.current_forces[i][2]
+                v[3]=float(self.parent_wfx.current_status[i])
+                status.pushBack(v)
+            self.parent_wfx.ping_pong.setShaderInput('status',status)
+            self.parent_wfx.root.setShaderInput('status',status)
+        except AttributeError:
+            pass
+
+    @property
+    def active(self):
+        return bool(self.__active)
+
+    @active.setter
+    def active(self, active):
+        self.__active=int(active)
+        try:
+            status=PTA_LVecBase4f()
+            for i in range(self.parent_wfx.num_emitters):
+                v=Vec4(0,0,0,0)
+                if i == self.emitter_id:
+                    v[3]=float(active)
+                    self.parent_wfx.current_status[i]=active
+                else:
+                    v[3]=float(self.parent_wfx.current_status[i])
+                v[0]=self.parent_wfx.current_forces[i][0]
+                v[1]=self.parent_wfx.current_forces[i][1]
+                v[2]=self.parent_wfx.current_forces[i][2]
+                #print i, v
+                status.pushBack(v)
+            self.parent_wfx.ping_pong.setShaderInput('status',status)
+            self.parent_wfx.root.setShaderInput('status',status)
+        except AttributeError:
+            pass
+
+class BufferRotator(object):
     """
     This is a helper class that switches between 3 texture buffers,
     where each buffer is in turn the output or one of the inputs.
@@ -526,6 +644,8 @@ class BufferRotator():
         self.output=self.tex1
         self.state=0
         self.time=0
+
+        self.other_buffers=[]
 
     def reset_textures(self, tex0, tex1):
         self.tex0=tex0
@@ -709,11 +829,15 @@ class BufferRotator():
         if self.time >= self.update_speed:
             self.time=0
             self.updateEmitterMatrix()
+            for buff in self.other_buffers:
+                buff.setActive(True)
             self.flipBuffers()
         else:
             self.buffA.setActive(False)
             self.buffB.setActive(False)
             self.buffC.setActive(False)
+            for buff in self.other_buffers:
+                buff.setActive(False)
 
 class WorldHeightMap():
     """
@@ -764,3 +888,10 @@ class WorldHeightMap():
 
     def stop(self):
         self.buffer.setActive(False)
+
+    def remove(self):
+        engine = base.win.getGsg().getEngine()
+        self.buffer.clearRenderTextures()
+        engine.removeWindow(self.buffer)
+        self.cam.removeNode()
+        self.output=None
