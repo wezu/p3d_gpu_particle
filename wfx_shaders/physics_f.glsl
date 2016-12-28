@@ -4,7 +4,7 @@
 
 #if WFX_USE_HEIGHTMAP_COLLISIONS==1
 uniform sampler2D collision_map;
-uniform float world_size;
+uniform vec3 world_pos_size;
 #endif
 
 #if WFX_USE_3D_COLLISIONS==1
@@ -41,71 +41,71 @@ void main()
     mat4 emitter_matrix=emitter_data[emitter_id];
 
 
-    if (status[emitter_id].w == 0.0)
-        final_pos=vec4(pos_last.xyz, props.x);
-    else
-        {
-        float life =pos_last.w;
-        float max_life=props.y;
-        if (life>max_life)
-            life=props.x;
+    float life =pos_last.w;
+    float max_life=props.y;
+    if (life>max_life)
+        life=props.x;
 
-        if (life<=0.0)
+    if (life<=0.0)
+        {
+        if (status[emitter_id].w == 0.0)
+            final_pos=vec4(pos_last.xyz, -1.0);
+        else
             {
             pos_zero=emitter_matrix *vec4(pos_zero.xyz, 1.0);
             final_pos=vec4(pos_zero.xyz, life+1.0);
             }
+        }
+    else
+        {
+        if (life<=1.0)
+            {
+            pos_one=emitter_matrix *vec4(pos_one.xyz, 1.0);
+            final_pos=vec4(pos_one.xyz, life+1.0);
+            }
         else
             {
-            if (life<=1.0)
-                {
-                pos_one=emitter_matrix *vec4(pos_one.xyz, 1.0);
-                final_pos=vec4(pos_one.xyz, life+1.0);
-                }
-            else
-                {
-                vec3 velocity=pos_last.xyz-pos_prelast.xyz;
-                vec3 force = global_force.xyz + status[emitter_id].xyz; //status.xyz is the per-emitter local force
-                float mass= (sin((life/max_life)+mass_curve.x)*3.141592653589793*mass_curve.y)*mass_curve.z + mass_curve.w;
-                velocity += (force*mass)*WFX_VELOCITY_CONST;
-                vec3 new_pos=pos_last.xyz+velocity;
+            vec3 velocity=pos_last.xyz-pos_prelast.xyz;
+            vec3 force = global_force.xyz + status[emitter_id].xyz; //status.xyz is the per-emitter local force
+            float mass= (sin((life/max_life)+mass_curve.x)*3.141592653589793*mass_curve.y)*mass_curve.z + mass_curve.w;
+            velocity += (force*mass)*WFX_VELOCITY_CONST;
+            vec3 new_pos=pos_last.xyz+velocity;
 
-                #if WFX_USE_HEIGHTMAP_COLLISIONS==1
-                vec4 hm=texture(collision_map, (pos_last.xy+vec2(world_size/2.0, world_size/2.0))/world_size);
-                if ((new_pos.z<hm.w)&&(pos_last.z>hm.w-WFX_COLLISION_DEPTH))//&&(hm.xyz!=vec3(0.0,0.0,0.0)))
+            #if WFX_USE_HEIGHTMAP_COLLISIONS==1
+            vec4 hm=texture(collision_map, (pos_last.xy+world_pos_size.xy)/world_pos_size.z);
+            if ((new_pos.z<hm.w)&&(pos_last.z>hm.w-WFX_COLLISION_DEPTH))//&&(hm.xyz!=vec3(0.0,0.0,0.0)))
+                {
+                velocity=pos_last.xyz-pos_prelast.xyz;
+                velocity=reflect(normalize(-hm.xyz), normalize(velocity))*length(velocity)*props.w;
+                velocity.xy*=-1.0;
+                new_pos.xyz=pos_last.xyz+velocity;
+                }
+            #endif
+
+            #if WFX_USE_3D_COLLISIONS==1
+            vec3 uvw=((new_pos.xyz+WFX_COLLISION_DEPTH)+voxel_size.xyz*0.5)/voxel_size.xyz;
+            if (all(greaterThanEqual(uvw, vec3(0.0, 0.0, 0.0))) && all(lessThanEqual(uvw, vec3(1.0, 1.0, 1.0))))
+                {
+                uvw.y*=-1.0;
+                vec4 voxel=texture(voxel_map, uvw);
+                if (voxel.w > 0.0)
                     {
                     velocity=pos_last.xyz-pos_prelast.xyz;
-                    velocity=reflect(normalize(-hm.xyz), normalize(velocity))*length(velocity)*props.w;
+                    velocity=reflect(normalize(-voxel.xyz), normalize(velocity))*length(velocity)*props.w;
                     velocity.xy*=-1.0;
+                    velocity += (force*mass)*WFX_VELOCITY_CONST*(vec3(1.0, 1.0, 1.0)-normalize(voxel.xyz));
+                    //velocity.xyz+=voxel.xyz*WFX_COLLISION_DEPTH*WFX_VELOCITY_CONST;
                     new_pos.xyz=pos_last.xyz+velocity;
                     }
-                #endif
-
-                #if WFX_USE_3D_COLLISIONS==1
-                vec3 uvw=((new_pos.xyz+WFX_COLLISION_DEPTH)+voxel_size.xyz*0.5)/voxel_size.xyz;
-                if (all(greaterThanEqual(uvw, vec3(0.0, 0.0, 0.0))) && all(lessThanEqual(uvw, vec3(1.0, 1.0, 1.0))))
+                else
                     {
-                    uvw.y*=-1.0;
-                    vec4 voxel=texture(voxel_map, uvw);
-                    if (voxel.w > 0.0)
-                        {
-                        velocity=pos_last.xyz-pos_prelast.xyz;
-                        velocity=reflect(normalize(-voxel.xyz), normalize(velocity))*length(velocity)*props.w;
-                        velocity.xy*=-1.0;
-                        velocity += (force*mass)*WFX_VELOCITY_CONST*(vec3(1.0, 1.0, 1.0)-normalize(voxel.xyz));
-                        //velocity.xyz+=voxel.xyz*WFX_COLLISION_DEPTH*WFX_VELOCITY_CONST;
-                        new_pos.xyz=pos_last.xyz+velocity;
-                        }
-                    //else
-                    //    {
-                    //    new_pos+=voxel.xyz*0.12;
-                    //    }
+                    new_pos+=voxel.xyz*WFX_VELOCITY_CONST;
                     }
-                #endif
-
-
-                final_pos=vec4(new_pos.xyz, life+1.0);
                 }
+            #endif
+
+
+            final_pos=vec4(new_pos.xyz, life+1.0);
             }
         }
     }

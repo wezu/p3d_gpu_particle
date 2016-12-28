@@ -242,6 +242,8 @@ class Wfx(object):
     def _update(self, task):
         dt=globalClock.getDt()
         self.root.setShaderInput('camera_pos', base.camera.getPos(self.root))
+        if self.use_heightmap_collision:
+            self.ping_pong.setShaderInput('world_pos_size', self.collision_map.getShaderWorldPos())
         if not self.pause:
             self.ping_pong.update(dt)
         self.root.setShaderInput('pos_tex', self.ping_pong.output)
@@ -341,7 +343,7 @@ class Wfx(object):
                         'status':status}
             if self.use_heightmap_collision:
                 shader_inputs['collision_map']=self.collision_map.get()
-                shader_inputs['world_size']=float(self.world_size)
+                shader_inputs['world_pos_size']=self.collision_map.getShaderWorldPos()
             if self.use_vector_field:
                 shader_inputs['voxel_map']=self.vector_field
                 shader_inputs['voxel_size']=self.voxel_size
@@ -851,6 +853,7 @@ class WorldHeightMap():
         props.setRgbaBits(bits,bits, bits, bits)
         props.setSrgbColor(False)
         props.setFloatColor(True)
+        self.world_size=world_size
 
         self.output=Texture()
         self.output.setWrapU(SamplerState.WM_clamp)
@@ -878,9 +881,14 @@ class WorldHeightMap():
         #self.cam.node().showFrustum()
 
         #apply a shader to the camera
-        state_np = NodePath("state_node")
-        state_np.setShader(Shader.load(Shader.SLGLSL, "wfx_shaders/heightmap_v.glsl","wfx_shaders/heightmap_f.glsl"),1)
-        self.cam.node().setInitialState(state_np.getState())
+        #state_np = NodePath("state_node")
+        #state_np.setShader(Shader.load(Shader.SLGLSL, "wfx_shaders/heightmap_v.glsl","wfx_shaders/heightmap_f.glsl"),1)
+        #self.cam.node().setInitialState(state_np.getState())
+
+    def getShaderWorldPos(self):
+        return Vec3(self.world_size*0.5+self.cam.getX(render),
+                 self.world_size*0.5+self.cam.getY(render),
+                 self.world_size)
 
     def get(self):
         self.buffer.setActive(True)

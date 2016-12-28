@@ -53,8 +53,8 @@ void main()
         point_size = 0.0;
 
     int emmiter_id=int(props.z);
-    if (status[emmiter_id].w == 0.0)
-        point_size = 0.0;
+    //if (status[emmiter_id].w == 0.0)
+    //    point_size = 0.0;
 
     gl_PointSize = point_size;
     }
