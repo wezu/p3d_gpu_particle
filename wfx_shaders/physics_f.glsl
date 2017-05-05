@@ -49,7 +49,7 @@ void main()
     if (life<=0.0)
         {
         if (status[emitter_id].w == 0.0)
-            final_pos=vec4(pos_last.xyz, -1.0);
+            final_pos=vec4(pos_one.xyz, props.x);
         else
             {
             pos_zero=emitter_matrix *vec4(pos_zero.xyz, 1.0);
