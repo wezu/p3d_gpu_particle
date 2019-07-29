@@ -304,10 +304,13 @@ class Wfx(object):
                     new_kwargs[name[:-4]]=Texture()
                     new_kwargs[name[:-4]].load(p)
                     #new_kwargs[name[:-4]].setCompression(Texture.CM_dxt5)
+                    
                 if name[-3:]=='txt':
                     ss=StringStream()
                     mf.extractSubfileTo(index,ss)
-                    data=json.loads(ss.getData())
+                    string=ss.getData()
+                    string=string.decode()
+                    data=json.loads(string)
                     new_kwargs['data']=data
 
             #feed back the loaded pfm files back to self.load()
